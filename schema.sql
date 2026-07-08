@@ -1,0 +1,42 @@
+-- Delta: Skill-gap analyzer database schema
+-- Models: courses teach skills, roles require skills, students take courses
+
+CREATE TABLE IF NOT EXISTS skills (
+    skill_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    category TEXT NOT NULL  -- 'language', 'framework', 'concept', 'tool'
+);
+
+CREATE TABLE IF NOT EXISTS courses (
+    course_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT NOT NULL UNIQUE,   -- e.g. 'CMPT 225'
+    title TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS roles (
+    role_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    industry TEXT
+);
+
+-- junction table: many courses teach many skills
+CREATE TABLE IF NOT EXISTS course_skills (
+    course_id INTEGER NOT NULL REFERENCES courses(course_id),
+    skill_id INTEGER NOT NULL REFERENCES skills(skill_id),
+    PRIMARY KEY (course_id, skill_id)
+);
+
+-- junction table: many roles require many skills, with a weight for importance
+CREATE TABLE IF NOT EXISTS role_skills (
+    role_id INTEGER NOT NULL REFERENCES roles(role_id),
+    skill_id INTEGER NOT NULL REFERENCES skills(skill_id),
+    weight REAL NOT NULL DEFAULT 1.0,  -- 1.0 = core requirement, 0.5 = nice-to-have
+    PRIMARY KEY (role_id, skill_id)
+);
+
+-- tracks which courses a specific student has actually completed
+CREATE TABLE IF NOT EXISTS student_courses (
+    student_id INTEGER NOT NULL,
+    course_id INTEGER NOT NULL REFERENCES courses(course_id),
+    PRIMARY KEY (student_id, course_id)
+);

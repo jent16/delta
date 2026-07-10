@@ -48,12 +48,20 @@ def main():
             (row["title"], row["industry"]),
         )
 
+    # --- programs ---
+    for row in load_csv(f"{DATA_DIR}/programs.csv"):
+        cur.execute(
+            "INSERT INTO programs (name, institution) VALUES (?, ?)",
+            (row["name"], row["institution"]),
+        )
+
     conn.commit()
 
     # build lookup maps now that IDs exist
     skill_id = {name: sid for sid, name in cur.execute("SELECT skill_id, name FROM skills")}
     course_id = {code: cid for cid, code in cur.execute("SELECT course_id, code FROM courses")}
     role_id = {title: rid for rid, title in cur.execute("SELECT role_id, title FROM roles")}
+    program_id = {name: pid for pid, name in cur.execute("SELECT program_id, name FROM programs")}
 
     # --- course_skills ---
     for row in load_csv(f"{DATA_DIR}/course_skills.csv"):
@@ -74,6 +82,13 @@ def main():
         cur.execute(
             "INSERT INTO student_courses (student_id, course_id) VALUES (?, ?)",
             (int(row["student_id"]), course_id[row["course_code"]]),
+        )
+
+    # --- program_courses ---
+    for row in load_csv(f"{DATA_DIR}/program_courses.csv"):
+        cur.execute(
+            "INSERT INTO program_courses (program_id, course_id) VALUES (?, ?)",
+            (program_id[row["program_name"]], course_id[row["course_code"]]),
         )
 
     conn.commit()

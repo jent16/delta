@@ -19,6 +19,20 @@ CREATE TABLE IF NOT EXISTS roles (
     industry TEXT
 );
 
+-- academic programs/majors (e.g. "Computing Science Dual Degree Program - SFU-ZJU")
+CREATE TABLE IF NOT EXISTS programs (
+    program_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    institution TEXT NOT NULL
+);
+
+-- junction table: which courses are required for a given program
+CREATE TABLE IF NOT EXISTS program_courses (
+    program_id INTEGER NOT NULL REFERENCES programs(program_id),
+    course_id INTEGER NOT NULL REFERENCES courses(course_id),
+    PRIMARY KEY (program_id, course_id)
+);
+
 -- junction table: many courses teach many skills
 CREATE TABLE IF NOT EXISTS course_skills (
     course_id INTEGER NOT NULL REFERENCES courses(course_id),

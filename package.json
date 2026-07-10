@@ -1,0 +1,25 @@
+{
+  "name": "delta",
+  "version": "1.0.0",
+  "description": "A skill-gap analyzer that models which skills SFU courses teach, which skills target internship roles require, and computes a readiness score per role based on courses a student has actually completed.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jent16/delta.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/jent16/delta/issues"
+  },
+  "homepage": "https://github.com/jent16/delta#readme",
+  "dependencies": {
+    "better-sqlite3": "^12.11.1",
+    "express": "^5.2.1"
+  }
+}

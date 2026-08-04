@@ -91,6 +91,23 @@ def main():
             (program_id[row["program_name"]], course_id[row["course_code"]]),
         )
 
+    # --- job_postings ---
+    for row in load_csv(f"{DATA_DIR}/job_postings.csv"):
+        cur.execute(
+            """INSERT INTO job_postings
+               (role_id, source, external_id, company, title, url, fetched_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                role_id[row["role_title"]],
+                row["source"],
+                row["external_id"],
+                row["company"],
+                row["title"],
+                row["url"],
+                row["fetched_at"],
+            ),
+        )
+
     conn.commit()
     conn.close()
     print(f"Built {DB_PATH} from {DATA_DIR}/ successfully.")

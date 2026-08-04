@@ -54,3 +54,30 @@ CREATE TABLE IF NOT EXISTS student_courses (
     course_id INTEGER NOT NULL REFERENCES courses(course_id),
     PRIMARY KEY (student_id, course_id)
 );
+
+-- a resume a user uploaded for matching against roles
+CREATE TABLE IF NOT EXISTS resumes (
+    resume_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    filename TEXT NOT NULL,
+    uploaded_at TEXT NOT NULL   -- ISO 8601 timestamp
+);
+
+-- skills extracted from a resume's text
+CREATE TABLE IF NOT EXISTS resume_skills (
+    resume_id INTEGER NOT NULL REFERENCES resumes(resume_id),
+    skill_id INTEGER NOT NULL REFERENCES skills(skill_id),
+    PRIMARY KEY (resume_id, skill_id)
+);
+
+-- real job postings that were ingested to derive a role's skill weights;
+-- lets every role_skills weight be traced back to actual source listings
+CREATE TABLE IF NOT EXISTS job_postings (
+    posting_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    role_id INTEGER NOT NULL REFERENCES roles(role_id),
+    source TEXT NOT NULL,       -- e.g. 'adzuna'
+    external_id TEXT,           -- source's own posting id
+    company TEXT,
+    title TEXT,
+    url TEXT,
+    fetched_at TEXT NOT NULL    -- ISO 8601 timestamp
+);

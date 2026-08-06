@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Delta — resume readiness matcher</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #0b0d10;
+    --panel: #14171c;
+    --border: #262b33;
+    --text: #e6e9ee;
+    --muted: #9aa4b2;
+    --accent: #5b8cff;
+    --good: #3ecf8e;
+    --bad: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 2.5rem 1rem;
+  }
+  main { width: 100%; max-width: 640px; }
+  h1 { font-size: 1.4rem; margin: 0 0 0.25rem; }
+  p.sub { color: var(--muted); margin: 0 0 2rem; font-size: 0.9rem; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+  }
+  label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.35rem; }
+  select, input[type="file"] {
+    width: 100%;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.55rem 0.6rem;
+    font-size: 0.9rem;
+  }
+  .row { margin-bottom: 1rem; }
+  .row:last-child { margin-bottom: 0; }
+  button {
+    width: 100%;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 0.7rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  #status { font-size: 0.85rem; color: var(--muted); margin-top: 0.75rem; min-height: 1.2em; }
+  #status.error { color: var(--bad); }
+  .role-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  .role-name { font-weight: 600; }
+  .role-industry { font-size: 0.75rem; color: var(--muted); }
+  .badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .badge.match { background: rgba(62, 207, 142, 0.15); color: var(--good); }
+  .badge.gap { background: rgba(255, 107, 107, 0.15); color: var(--bad); }
+  .missing { font-size: 0.82rem; color: var(--muted); margin-top: 0.5rem; }
+  .missing b { color: var(--text); font-weight: 500; }
+  #inferredNote { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.75rem; }
+  #results { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Delta</h1>
+  <p class="sub">Upload a resume and see readiness against every tracked role.</p>
+
+  <form class="card" id="uploadForm">
+    <div class="row">
+      <label for="function">Job function</label>
+      <select id="function" required>
+        <option value="" disabled selected>Loading roles…</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="industry">Industry</label>
+      <select id="industry">
+        <option value="">Let Delta infer from my resume</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="resume">Resume (PDF)</label>
+      <input type="file" id="resume" accept="application/pdf" required />
+    </div>
+    <div class="row">
+      <button type="submit" id="submitBtn">Score my resume</button>
+    </div>
+    <div id="status"></div>
+  </form>
+
+  <div id="results"></div>
+</main>
+
+<script>
+  const functionSelect = document.getElementById("function");
+  const industrySelect = document.getElementById("industry");
+  const statusEl = document.getElementById("status");
+  const resultsEl = document.getElementById("results");
+  const submitBtn = document.getElementById("submitBtn");
+
+  // title -> Set of industries, built from GET /roles — no separate
+  // endpoint needed, the dropdowns are just a client-side view of it.
+  let rolesByTitle = new Map();
+
+  async function loadRoles() {
+    const res = await fetch("/roles");
+    const data = await res.json();
+    rolesByTitle = new Map();
+    for (const r of data.roles) {
+      if (!rolesByTitle.has(r.title)) rolesByTitle.set(r.title, new Set());
+      if (r.industry) rolesByTitle.get(r.title).add(r.industry);
+    }
+
+    functionSelect.innerHTML = "";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Select a role…";
+    placeholder.disabled = true;
+    placeholder.selected = true;
+    functionSelect.appendChild(placeholder);
+    for (const title of rolesByTitle.keys()) {
+      const opt = document.createElement("option");
+      opt.value = title;
+      opt.textContent = title;
+      functionSelect.appendChild(opt);
+    }
+    updateIndustryOptions();
+  }
+
+  function updateIndustryOptions() {
+    const industries = rolesByTitle.get(functionSelect.value) || new Set();
+    industrySelect.innerHTML = "";
+    const inferOpt = document.createElement("option");
+    inferOpt.value = "";
+    inferOpt.textContent = "Let Delta infer from my resume";
+    industrySelect.appendChild(inferOpt);
+    for (const industry of industries) {
+      const opt = document.createElement("option");
+      opt.value = industry;
+      opt.textContent = industry;
+      industrySelect.appendChild(opt);
+    }
+  }
+
+  functionSelect.addEventListener("change", updateIndustryOptions);
+
+  function renderResults(data) {
+    resultsEl.style.display = "block";
+    resultsEl.innerHTML = "";
+
+    if (data.usedInferredIndustry) {
+      const note = document.createElement("div");
+      note.id = "inferredNote";
+      note.textContent = `No industry selected — sorted with best guess: ${data.inferredIndustry}`;
+      resultsEl.appendChild(note);
+    }
+
+    for (const r of data.results) {
+      const card = document.createElement("div");
+      card.className = "card";
+      const missing = r.missingSkills.length
+        ? `<div class="missing"><b>Missing:</b> ${r.missingSkills.join(", ")}</div>`
+        : `<div class="missing">No gaps against this role's tracked requirements.</div>`;
+      card.innerHTML = `
+        <div class="role-card">
+          <div>
+            <div class="role-name">${r.role}</div>
+            <div class="role-industry">${r.industry || ""}</div>
+          </div>
+          <span class="badge ${r.isMatch ? "match" : "gap"}">${r.readinessPercent}% ${r.isMatch ? "match" : "gap"}</span>
+        </div>
+        ${missing}
+      `;
+      resultsEl.appendChild(card);
+    }
+  }
+
+  document.getElementById("uploadForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    statusEl.textContent = "";
+    statusEl.classList.remove("error");
+    resultsEl.style.display = "none";
+
+    const fileInput = document.getElementById("resume");
+    if (!fileInput.files[0]) return;
+
+    const formData = new FormData();
+    formData.append("resume", fileInput.files[0]);
+    if (functionSelect.value) formData.append("title", functionSelect.value);
+    if (industrySelect.value) formData.append("industry", industrySelect.value);
+
+    submitBtn.disabled = true;
+    statusEl.textContent = "Uploading and scoring…";
+
+    try {
+      const res = await fetch("/resume", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) {
+        statusEl.textContent = data.error || `Request failed (${res.status})`;
+        statusEl.classList.add("error");
+        return;
+      }
+      statusEl.textContent = "";
+      renderResults(data);
+    } catch (err) {
+      statusEl.textContent = `Network error: ${err.message}`;
+      statusEl.classList.add("error");
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
+  loadRoles();
+</script>
+</body>
+</html>

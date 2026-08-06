@@ -114,6 +114,34 @@ credits, the endpoint fails cleanly with a `502` at the extraction step
 (the PDF upload, parsing, and DB writes all still work — the failure is
 isolated to the external API call).
 
+**Narrowing which roles get scored:** both endpoints accept an optional
+`title` and `industry` (form fields on `POST /resume`, query params on
+`GET /resume/:resumeId`). `title` and an explicit `industry` hard-filter
+which roles are even considered. If `industry` is left out, Claude's
+`inferred_industry` guess (produced in the same extraction call, no extra
+API cost) is used only as a *soft* sort — it never hides a role, it just
+ranks same-industry roles first, since a guess shouldn't be able to hide
+something the user might still want to see. The response includes
+`inferredIndustry` and `usedInferredIndustry` so the UI can show what
+happened.
+
+## Web UI
+
+`public/index.html`, served by `server.js` via `express.static`, is a
+plain HTML/JS page (no build step, no framework) with two dependent
+dropdowns:
+
+- **Job function** — populated from `GET /roles`, deduplicated by title.
+- **Industry** — populated from the industries that specific function has
+  actually been ingested under; defaults to "Let Delta infer from my
+  resume," which leaves `industry` unset so the backend falls back to the
+  soft-sort behavior above.
+
+Both dropdowns only ever show options that exist in the database — there's
+no hardcoded taxonomy to keep in sync as more roles get ingested.
+
+Run it with `node server.js` and open `http://localhost:3000`.
+
 ## Data
 
 Seed data lives in `data/*.csv` and is intentionally small right now:
@@ -141,6 +169,7 @@ as any other request-scoped data.
       (course side is still hand-tagged; role side is now automated)
 - [ ] Add a "study plan" query: for a role's missing skills, suggest
       which courses would close the largest gap
-- [ ] Simple CLI or web frontend instead of running scripts directly
+- [x] Simple CLI or web frontend instead of running scripts directly —
+      `public/index.html`, served by `server.js` (see Web UI above)
 - [x] Resume upload → skill extraction → readiness match — `POST /resume`
       reuses the same Claude-based extraction approach as role ingestion

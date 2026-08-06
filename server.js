@@ -2,6 +2,7 @@
 // Express API wrapping the same readiness logic as readiness.py,
 // reading from the same delta.db SQLite database.
 
+const path = require("path");
 const express = require("express");
 const Database = require("better-sqlite3");
 const multer = require("multer");
@@ -11,6 +12,8 @@ const { extractResumeSkills } = require("./lib/extract-skills");
 const app = express();
 const db = new Database("delta.db");
 const PORT = 3000;
+
+app.use(express.static(path.join(__dirname, "public")));
 
 // readiness % at or above this counts as a "match" rather than a gap
 const MATCH_THRESHOLD = 75;
@@ -178,29 +181,45 @@ function getResumeSkills(resumeId) {
   return skillMap;
 }
 
-function scoreResumeAgainstRoles(resumeSkills) {
-  const roles = db.prepare("SELECT role_id, title FROM roles").all();
-  return roles
-    .map((role) => {
-      const requirements = getRoleRequirements(role.role_id);
-      const totalWeight = requirements.reduce((sum, r) => sum + r.weight, 0);
-      const earnedWeight = requirements
-        .filter((r) => resumeSkills[r.skill_id])
-        .reduce((sum, r) => sum + r.weight, 0);
+// filters.title / filters.industry are explicit user selections and hard-
+// filter which roles get considered at all. filters.softIndustry (set from
+// the resume's inferred industry when the user didn't pick one) never
+// hides a role — it only sorts same-industry roles to the top, since a
+// guess shouldn't be able to hide a role the user might still want to see.
+function scoreResumeAgainstRoles(resumeSkills, filters = {}) {
+  let roles = db.prepare("SELECT role_id, title, industry FROM roles").all();
+  if (filters.title) roles = roles.filter((r) => r.title === filters.title);
+  if (filters.industry) roles = roles.filter((r) => r.industry === filters.industry);
 
-      const readiness = totalWeight ? (earnedWeight / totalWeight) * 100 : 0;
-      const missing = requirements
-        .filter((r) => !resumeSkills[r.skill_id])
-        .map((r) => r.name);
+  const results = roles.map((role) => {
+    const requirements = getRoleRequirements(role.role_id);
+    const totalWeight = requirements.reduce((sum, r) => sum + r.weight, 0);
+    const earnedWeight = requirements
+      .filter((r) => resumeSkills[r.skill_id])
+      .reduce((sum, r) => sum + r.weight, 0);
 
-      return {
-        role: role.title,
-        readinessPercent: Math.round(readiness),
-        isMatch: readiness >= MATCH_THRESHOLD,
-        missingSkills: missing,
-      };
-    })
-    .sort((a, b) => b.readinessPercent - a.readinessPercent);
+    const readiness = totalWeight ? (earnedWeight / totalWeight) * 100 : 0;
+    const missing = requirements
+      .filter((r) => !resumeSkills[r.skill_id])
+      .map((r) => r.name);
+
+    return {
+      role: role.title,
+      industry: role.industry,
+      readinessPercent: Math.round(readiness),
+      isMatch: readiness >= MATCH_THRESHOLD,
+      missingSkills: missing,
+    };
+  });
+
+  return results.sort((a, b) => {
+    if (filters.softIndustry) {
+      const aMatch = a.industry === filters.softIndustry ? 1 : 0;
+      const bMatch = b.industry === filters.softIndustry ? 1 : 0;
+      if (aMatch !== bMatch) return bMatch - aMatch;
+    }
+    return b.readinessPercent - a.readinessPercent;
+  });
 }
 
 // resolves an extracted skill name to an existing skill_id, inserting a new
@@ -239,25 +258,28 @@ app.post("/resume", upload.single("resume"), async (req, res) => {
 
   const knownSkillNames = db.prepare("SELECT name FROM skills").all().map((r) => r.name);
 
-  let extracted;
+  let skills, inferredIndustry;
   try {
-    extracted = await extractResumeSkills(text, knownSkillNames);
+    ({ skills, inferredIndustry } = await extractResumeSkills(text, knownSkillNames));
   } catch (err) {
     return res.status(502).json({ error: `skill extraction failed: ${err.message}` });
   }
 
   const insertResume = db.prepare(
-    "INSERT INTO resumes (filename, uploaded_at) VALUES (?, ?)"
+    "INSERT INTO resumes (filename, inferred_industry, uploaded_at) VALUES (?, ?, ?)"
   );
   const insertResumeSkill = db.prepare(
     "INSERT OR IGNORE INTO resume_skills (resume_id, skill_id) VALUES (?, ?)"
   );
 
   const { resumeId, skillNames } = db.transaction(() => {
-    const resumeId = insertResume.run(req.file.originalname, new Date().toISOString())
-      .lastInsertRowid;
+    const resumeId = insertResume.run(
+      req.file.originalname,
+      inferredIndustry,
+      new Date().toISOString()
+    ).lastInsertRowid;
     const skillNames = [];
-    for (const s of extracted) {
+    for (const s of skills) {
       const skillId = resolveSkillId(s.name.trim(), s.category);
       insertResumeSkill.run(resumeId, skillId);
       skillNames.push(s.name.trim());
@@ -265,16 +287,29 @@ app.post("/resume", upload.single("resume"), async (req, res) => {
     return { resumeId, skillNames };
   })();
 
+  // title/industry come from the dropdowns and hard-filter; if the user left
+  // the industry dropdown on "infer from resume", fall back to Claude's guess
+  // as a soft sort instead, so nothing gets hidden behind a wrong guess.
+  const title = req.body.title || null;
+  const explicitIndustry = req.body.industry || null;
+
   res.json({
     resumeId,
     filename: req.file.originalname,
     extractedSkills: skillNames,
-    results: scoreResumeAgainstRoles(getResumeSkills(resumeId)),
+    inferredIndustry,
+    usedInferredIndustry: !explicitIndustry && !!inferredIndustry,
+    results: scoreResumeAgainstRoles(getResumeSkills(resumeId), {
+      title,
+      industry: explicitIndustry,
+      softIndustry: explicitIndustry ? null : inferredIndustry,
+    }),
   });
 });
 
 // GET /resume/:resumeId — re-score a previously uploaded resume, e.g. after
-// new roles have been ingested since it was uploaded.
+// new roles have been ingested since it was uploaded. Accepts the same
+// ?title=&industry= filters as the upload endpoint.
 app.get("/resume/:resumeId", (req, res) => {
   const resumeId = parseInt(req.params.resumeId, 10);
   if (isNaN(resumeId)) {
@@ -282,16 +317,25 @@ app.get("/resume/:resumeId", (req, res) => {
   }
 
   const resume = db
-    .prepare("SELECT resume_id, filename FROM resumes WHERE resume_id = ?")
+    .prepare("SELECT resume_id, filename, inferred_industry FROM resumes WHERE resume_id = ?")
     .get(resumeId);
   if (!resume) {
     return res.status(404).json({ error: "resume not found" });
   }
 
+  const title = req.query.title || null;
+  const explicitIndustry = req.query.industry || null;
+
   res.json({
     resumeId,
     filename: resume.filename,
-    results: scoreResumeAgainstRoles(getResumeSkills(resumeId)),
+    inferredIndustry: resume.inferred_industry,
+    usedInferredIndustry: !explicitIndustry && !!resume.inferred_industry,
+    results: scoreResumeAgainstRoles(getResumeSkills(resumeId), {
+      title,
+      industry: explicitIndustry,
+      softIndustry: explicitIndustry ? null : resume.inferred_industry,
+    }),
   });
 });
 

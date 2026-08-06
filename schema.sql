@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS student_courses (
 CREATE TABLE IF NOT EXISTS resumes (
     resume_id INTEGER PRIMARY KEY AUTOINCREMENT,
     filename TEXT NOT NULL,
+    inferred_industry TEXT,     -- Claude's best guess, used as a soft sort key
     uploaded_at TEXT NOT NULL   -- ISO 8601 timestamp
 );
 

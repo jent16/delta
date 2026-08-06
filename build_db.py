@@ -60,7 +60,12 @@ def main():
     # build lookup maps now that IDs exist
     skill_id = {name: sid for sid, name in cur.execute("SELECT skill_id, name FROM skills")}
     course_id = {code: cid for cid, code in cur.execute("SELECT course_id, code FROM courses")}
-    role_id = {title: rid for rid, title in cur.execute("SELECT role_id, title FROM roles")}
+    # keyed by (title, industry) since the same title can be ingested under
+    # multiple industries as distinct roles with their own skill weights
+    role_id = {
+        (title, industry): rid
+        for rid, title, industry in cur.execute("SELECT role_id, title, industry FROM roles")
+    }
     program_id = {name: pid for pid, name in cur.execute("SELECT program_id, name FROM programs")}
 
     # --- course_skills ---
@@ -74,7 +79,11 @@ def main():
     for row in load_csv(f"{DATA_DIR}/role_skills.csv"):
         cur.execute(
             "INSERT INTO role_skills (role_id, skill_id, weight) VALUES (?, ?, ?)",
-            (role_id[row["role_title"]], skill_id[row["skill_name"]], float(row["weight"])),
+            (
+                role_id[(row["role_title"], row["industry"])],
+                skill_id[row["skill_name"]],
+                float(row["weight"]),
+            ),
         )
 
     # --- student_courses ---
@@ -98,7 +107,7 @@ def main():
                (role_id, source, external_id, company, title, url, fetched_at)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (
-                role_id[row["role_title"]],
+                role_id[(row["role_title"], row["industry"])],
                 row["source"],
                 row["external_id"],
                 row["company"],

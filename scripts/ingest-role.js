@@ -158,12 +158,15 @@ async function ingestRole({ query, roleTitle, industry, limit, country }) {
     }))
     .sort((a, b) => b.weight - a.weight);
 
-  // --- roles.csv: add if new ---
+  // --- roles.csv: add if this exact (title, industry) pair is new. The
+  // same title under a different industry is a distinct role with its own
+  // skill weights, not an update to the existing one. ---
   const roleKey = norm(roleTitle);
-  if (!roles.some((r) => norm(r.title) === roleKey)) {
+  const isSameRole = (r) => norm(r.title) === roleKey && r.industry === industry;
+  if (!roles.some(isSameRole)) {
     roles.push({ title: roleTitle, industry });
     writeCSV("roles.csv", ["title", "industry"], roles.map((r) => [r.title, r.industry]));
-    console.log(`+ role: ${roleTitle}`);
+    console.log(`+ role: ${roleTitle} (${industry})`);
   }
 
   // --- skills.csv: append genuinely new skills ---
@@ -181,19 +184,27 @@ async function ingestRole({ query, roleTitle, industry, limit, country }) {
     console.log(`+ ${addedSkills} new skill(s)`);
   }
 
-  // --- role_skills.csv: replace this role's prior rows with fresh weights ---
-  const kept = roleSkills.filter((rs) => norm(rs.role_title) !== roleKey);
-  const fresh = weighted.map((c) => ({ role_title: roleTitle, skill_name: c.name, weight: c.weight }));
+  // --- role_skills.csv: replace this (title, industry)'s prior rows with fresh weights ---
+  const kept = roleSkills.filter(
+    (rs) => !(norm(rs.role_title) === roleKey && rs.industry === industry)
+  );
+  const fresh = weighted.map((c) => ({
+    role_title: roleTitle,
+    industry,
+    skill_name: c.name,
+    weight: c.weight,
+  }));
   writeCSV(
     "role_skills.csv",
-    ["role_title", "skill_name", "weight"],
-    [...kept, ...fresh].map((rs) => [rs.role_title, rs.skill_name, rs.weight])
+    ["role_title", "industry", "skill_name", "weight"],
+    [...kept, ...fresh].map((rs) => [rs.role_title, rs.industry, rs.skill_name, rs.weight])
   );
 
   // --- job_postings.csv: append for traceability ---
   const fetchedAt = new Date().toISOString();
   const newRows = postings.map((p) => ({
     role_title: roleTitle,
+    industry,
     source: "adzuna",
     external_id: p.externalId,
     company: p.company,
@@ -203,9 +214,10 @@ async function ingestRole({ query, roleTitle, industry, limit, country }) {
   }));
   writeCSV(
     "job_postings.csv",
-    ["role_title", "source", "external_id", "company", "title", "url", "fetched_at"],
+    ["role_title", "industry", "source", "external_id", "company", "title", "url", "fetched_at"],
     [...jobPostings, ...newRows].map((p) => [
       p.role_title,
+      p.industry,
       p.source,
       p.external_id,
       p.company,

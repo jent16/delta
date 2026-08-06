@@ -150,11 +150,11 @@ Seed data lives in `data/*.csv` and is intentionally small right now:
 |---|---|---|
 | `skills.csv` | 26 | controlled vocabulary — add new skills here first (or let ingestion add them) |
 | `courses.csv` | 20 | SFU CS courses |
-| `roles.csv` | 2 | target roles — grows via `scripts/ingest-role.js` |
+| `roles.csv` | 3 | target roles — grows via `scripts/ingest-role.js` |
 | `course_skills.csv` | — | maps courses → skills they teach |
-| `role_skills.csv` | — | maps roles → skills they require, with a weight (1.0 = core, lower = nice-to-have) |
+| `role_skills.csv` | — | maps `(role_title, industry)` → skills required, with a weight (1.0 = core, lower = nice-to-have) — the same title under a different industry is a distinct role with its own weights, not an update to the existing one |
 | `student_courses.csv` | — | which courses a student has completed |
-| `job_postings.csv` | — | real postings ingested per role, for traceability |
+| `job_postings.csv` | — | real postings ingested per `(role_title, industry)`, for traceability |
 
 `resumes` and `resume_skills` are not CSV-seeded — they're written at
 runtime by `POST /resume` and reset on every `build_db.py` rebuild, same

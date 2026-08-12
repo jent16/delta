@@ -128,8 +128,18 @@
   let rolesByTitle = new Map();
 
   async function loadRoles() {
-    const res = await fetch("/roles");
-    const data = await res.json();
+    let data;
+    try {
+      const res = await fetch("/roles");
+      if (!res.ok) throw new Error(`server responded ${res.status}`);
+      data = await res.json();
+    } catch (err) {
+      functionSelect.innerHTML = '<option value="" selected disabled>Failed to load roles</option>';
+      statusEl.textContent = `Couldn't reach the server at ${location.origin} — is "node server.js" running? (${err.message})`;
+      statusEl.classList.add("error");
+      return;
+    }
+
     rolesByTitle = new Map();
     for (const r of data.roles) {
       if (!rolesByTitle.has(r.title)) rolesByTitle.set(r.title, new Set());

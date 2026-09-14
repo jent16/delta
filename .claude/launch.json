@@ -6,6 +6,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["server.js"],
       "port": 3000
+    },
+    {
+      "name": "delta-api-mock",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server.js", "--mock"],
+      "port": 3000
     }
   ]
 }

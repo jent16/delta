@@ -1,175 +1,195 @@
 # Delta
 
-A skill-gap analyzer that models which skills SFU courses teach, which
-skills target internship roles require, and either matches a student
-(by completed courses or an uploaded resume) to the roles they're ready
-for, or surfaces exactly what's missing.
+A skill-gap analyzer built on real job postings. It stores what each
+individual posting asks for, rolls that up into what a role actually
+requires, and scores your resume against it — per role, per
+specialization, and per company.
 
 ## Why
 
-Course calendars — and generic resume screeners — don't tell you which
-of your target roles you're actually ready for. Delta cross-references
-course content and resume-extracted skills against real job
-requirements to surface the specific gaps — not just "learn more," but
-"you're missing SQL, Git, and REST APIs for this role."
+Course calendars and generic resume screeners don't tell you which of
+your target roles you're actually ready for. Delta cross-references
+skills from real postings against your resume to surface specific gaps —
+not "learn more," but "AcmeCo wants SQL and Git, you have neither."
 
-## How it works
+It also tells you which role you're most ready for *right now*, which
+may not be the one you're targeting.
 
-- `skills` — a controlled vocabulary of technical skills
-- `courses` — SFU CS courses
-- `roles` — target internship roles, populated from real postings (see
-  Automated role/skill ingestion below)
-- `course_skills` / `role_skills` — many-to-many junction tables linking
-  courses/roles to the skills they teach/require, with a weight derived
-  from how often real postings actually asked for each skill
-- `student_courses` — which courses a specific student has completed
-- `resumes` / `resume_skills` — an uploaded resume and the skills Claude
-  extracted from it (see Resume matching below)
-- `readiness.py` / `POST /resume` compute, per role, what percentage of
-  required skill *weight* the student/resume already has, and list
-  exactly what's missing
+## Design
 
-This started as a v0 with a small hand-seeded dataset to prove the
-schema and query logic end-to-end; role data and resume matching are
-now sourced automatically instead of by hand.
+**There are no hand-picked weights.** Every posting is stored as its own
+record with its own required/preferred skills, and requirements are
+derived at query time:
+
+- **Minimum** — required by at least half of a role's postings
+- **Preferred** — mentioned by at least a fifth, but not a minimum
+- **Per track** — the same rule inside one specialization, minus
+  anything already role-wide
+
+Thresholds live in `lib/requirements.js` and `requirements.py`; the two
+implementations must stay in sync.
+
+**Tracks** are specializations within a broad title — Backend, ML/AI,
+Embedded/Systems under Software Engineer Intern, for example. They come
+from a fixed list in `lib/tracks.js` that Claude picks from at ingest
+time, so postings group cleanly instead of scattering across "ML",
+"Machine Learning", and "AI". Add a track by adding a string.
+
+**Cost.** Claude is called once per posting at ingest, and twice per
+resume upload (extract skills, explain the fit). Everything after that —
+re-scoring, per-company views, adding a role to a profile — is pure SQL
+and free. Re-running an ingest skips postings already stored, so you
+only pay for listings you haven't seen.
+
+## Schema
+
+- `skills` — controlled vocabulary
+- `courses` / `course_skills` — SFU CS courses and what they teach
+- `roles` — targetable roles, unique on `(title, industry)`
+- `job_postings` — one real listing, with its company, track, and source text
+- `posting_skills` — what one posting asks for, as `required` or `preferred`
+- `profiles` / `profile_roles` — a person and the roles they're targeting
+- `resumes` / `resume_skills` — an upload, its matched skills, and its fit verdict
+- `programs` / `program_courses` — a curriculum, for program-level coverage
 
 ## Setup
 
 ```bash
-python3 build_db.py      # builds delta.db from schema.sql + data/*.csv
-python3 readiness.py     # prints readiness % and missing skills per role
-python3 readiness.py 2   # run for a different student_id
-```
-
-Requires Python 3 with the standard library only (`sqlite3`, `csv`) — no
-external dependencies.
-
-## Automated role/skill ingestion
-
-Hand-seeding roles doesn't scale, and readiness scores are only as good as
-the role data behind them. `scripts/ingest-role.js` pulls real postings for
-a role from the [Adzuna](https://developer.adzuna.com/) job search API,
-extracts required/preferred skills from each one with Claude, and merges
-the result into `data/roles.csv`, `data/skills.csv`, and
-`data/role_skills.csv` — a skill's weight is derived from what fraction of
-real postings actually asked for it, not a hand-picked number. Every
-posting used is logged to `data/job_postings.csv` so any weight can be
-traced back to its source listings.
-
-Setup:
-
-```bash
 npm install
 cp .env.example .env    # fill in ADZUNA_APP_ID, ADZUNA_APP_KEY, ANTHROPIC_API_KEY
+python3 build_db.py     # builds delta.db from schema.sql + data/*.csv
+node server.js          # http://localhost:3000
 ```
 
-- Adzuna credentials: free developer account at https://developer.adzuna.com/
-- Anthropic API key: https://console.anthropic.com/ (separate from a Claude
-  Code session — this is a standalone key for the script to call the API)
+The Python scripts need only the standard library. Node is required for
+the server and the ingest script.
 
-Run it:
+- Adzuna credentials: free developer account at https://developer.adzuna.com/
+- Anthropic API key: https://console.anthropic.com/
+
+## Ingesting roles
 
 ```bash
 npm run ingest -- --query "software engineer intern" --title "Software Engineer Intern"
 npm run ingest -- --query "product manager intern" --title "Product Manager Intern"
-python3 build_db.py     # rebuild delta.db with the newly ingested data
+python3 build_db.py     # rebuild delta.db with the new postings
 ```
 
 Flags: `--query` (required, Adzuna search term), `--title` (canonical role
-name to store, defaults to a title-cased `--query`), `--industry` (default
+name, defaults to a title-cased `--query`), `--industry` (default
 `Technology`), `--limit` (postings to pull, default 15), `--country`
 (Adzuna country code, default `ca`).
 
+If every extraction fails — bad key, no credits, network down — the script
+writes nothing and exits non-zero, rather than leaving a role with no
+skills behind it.
+
 Known limitation: Adzuna's search API returns a truncated description
 snippet, not the full posting text, so extraction quality is bounded by
-that snippet — good enough to find signal across many postings, not a
-substitute for reading the full JD.
-
-## Resume matching
-
-`server.js` exposes a resume-upload flow that reuses the same Claude
-extraction pattern as role ingestion, but pointed at a candidate's resume
-instead of a job posting:
-
-```bash
-node server.js
-curl -X POST http://localhost:3000/resume -F "resume=@/path/to/resume.pdf"
-```
-
-What it does: parses the uploaded PDF's text (`pdf-parse`), sends it to
-Claude to extract every skill the resume actually demonstrates (not just
-mentions in passing), normalizes each one against the existing `skills`
-vocabulary case-insensitively — matching `"javascript"` to the canonical
-`"JavaScript"`, say — and inserts any genuinely new skill it finds. It
-then scores the resume against every role using the same weighted
-readiness math as `readiness.py`, and marks a role a "match" once
-readiness crosses `MATCH_THRESHOLD` (75% by default, set in
-`server.js`) — otherwise it returns the specific missing skills.
-
-`GET /resume/:resumeId` re-scores a previously uploaded resume without
-re-parsing it — useful after ingesting more roles.
-
-Requires `ANTHROPIC_API_KEY` in `.env` with billing enabled; without
-credits, the endpoint fails cleanly with a `502` at the extraction step
-(the PDF upload, parsing, and DB writes all still work — the failure is
-isolated to the external API call).
-
-**Narrowing which roles get scored:** both endpoints accept an optional
-`title` and `industry` (form fields on `POST /resume`, query params on
-`GET /resume/:resumeId`). `title` and an explicit `industry` hard-filter
-which roles are even considered. If `industry` is left out, Claude's
-`inferred_industry` guess (produced in the same extraction call, no extra
-API cost) is used only as a *soft* sort — it never hides a role, it just
-ranks same-industry roles first, since a guess shouldn't be able to hide
-something the user might still want to see. The response includes
-`inferredIndustry` and `usedInferredIndustry` so the UI can show what
-happened.
+that snippet. Good enough to find signal across many postings; not a
+substitute for reading the full job description.
 
 ## Web UI
 
-`public/index.html`, served by `server.js` via `express.static`, is a
-plain HTML/JS page (no build step, no framework) with two dependent
-dropdowns:
+`public/index.html`, served by `server.js`, is a plain HTML/JS page with
+no build step:
 
-- **Job function** — populated from `GET /roles`, deduplicated by title.
-- **Industry** — populated from the industries that specific function has
-  actually been ingested under; defaults to "Let Delta infer from my
-  resume," which leaves `industry` unset so the backend falls back to the
-  soft-sort behavior above.
+- **Profile** — pick or create one, and choose the roles you're targeting.
+  Targets can change over time without re-uploading anything.
+- **Upload** — the result leads with the role you're most ready for right
+  now and a short explanation, then per-target breakdowns by minimum,
+  preferred, and track, and a per-company list of every posting.
+- **What employers ask for** — browse any role's rolled-up requirements
+  and the individual listings behind them.
 
-Both dropdowns only ever show options that exist in the database — there's
-no hardcoded taxonomy to keep in sync as more roles get ingested.
+## API
 
-Run it with `node server.js` and open `http://localhost:3000`.
+| Route | What it does |
+|---|---|
+| `GET /roles` | every role with its posting count |
+| `GET /roles/:id/requirements` | rolled-up minimum/preferred/tracks + every listing |
+| `GET /skills` | the vocabulary, optional `?category=` |
+| `GET /profiles`, `POST /profiles`, `PUT /profiles/:id` | manage profiles and their target roles |
+| `POST /resume` | upload a PDF; extracts, scores, explains. Fields: `resume`, optional `profileId`, optional `roleIds` |
+| `GET /resume/:id` | re-score a stored resume against current postings. No Claude call |
+| `GET /readiness/:studentId` | course-derived skills vs every role |
+| `GET /program-readiness/:programId` | a whole curriculum vs every role |
+
+Resume skills are matched against the existing vocabulary only. A skill
+no posting has ever asked for is reported under `unmatchedSkills` rather
+than added to the vocabulary, so the skill list stays anchored to what
+employers actually ask for.
+
+## Developing without spending credits
+
+`scripts/mock-api.js` stands in for both the Anthropic and Adzuna APIs
+with canned responses:
+
+```bash
+node scripts/mock-api.js     # terminal 1, listens on 4010
+node server.js --mock        # terminal 2, points Claude calls at it
+```
+
+`--mock` forces the override, so a real key in `.env` or the shell can't
+leak mock traffic to the real API. For the ingest script, set both base
+URLs explicitly:
+
+```bash
+ANTHROPIC_BASE_URL=http://localhost:4010 ADZUNA_BASE_URL=http://localhost:4010 \
+  ANTHROPIC_API_KEY=mock ADZUNA_APP_ID=x ADZUNA_APP_KEY=y \
+  node scripts/ingest-role.js --query "software engineer intern" --limit 3
+```
+
+## Model choice
+
+Both call sites default to Claude Haiku 4.5 and are overridable in `.env`:
+
+- `INGEST_MODEL` — bulk posting extraction, once per posting
+- `RESUME_MODEL` — resume extraction and the fit explanation, twice per upload
+
+Haiku is the right default for extraction: the schema is tight and the
+work is mostly recognition. The fit explanation is the part that benefits
+from a stronger model, so `RESUME_MODEL=claude-sonnet-5` is the first
+upgrade to try if the reasoning reads thin. Per-upload cost stays well
+under a cent either way.
+
+## CLI
+
+```bash
+python3 readiness.py            # student 1's courses vs every role
+python3 readiness.py 2          # a different student
+python3 program_readiness.py    # a whole curriculum vs every role
+```
 
 ## Data
 
-Seed data lives in `data/*.csv` and is intentionally small right now:
+Seed data lives in `data/*.csv`.
 
-| File | Rows | Notes |
-|---|---|---|
-| `skills.csv` | 26 | controlled vocabulary — add new skills here first (or let ingestion add them) |
-| `courses.csv` | 20 | SFU CS courses |
-| `roles.csv` | 3 | target roles — grows via `scripts/ingest-role.js` |
-| `course_skills.csv` | — | maps courses → skills they teach |
-| `role_skills.csv` | — | maps `(role_title, industry)` → skills required, with a weight (1.0 = core, lower = nice-to-have) — the same title under a different industry is a distinct role with its own weights, not an update to the existing one |
-| `student_courses.csv` | — | which courses a student has completed |
-| `job_postings.csv` | — | real postings ingested per `(role_title, industry)`, for traceability |
+| File | Notes |
+|---|---|
+| `skills.csv` | controlled vocabulary; ingestion appends to it |
+| `courses.csv` / `course_skills.csv` | SFU CS courses and what they teach |
+| `roles.csv` | targetable roles, `(title, industry)` unique |
+| `job_postings.csv` | one row per real listing, with track and source text |
+| `posting_skills.csv` | what each posting asks for, keyed by `(source, external_id)` |
+| `student_courses.csv` / `program_courses.csv` / `programs.csv` | course-side data |
 
-`resumes` and `resume_skills` are not CSV-seeded — they're written at
-runtime by `POST /resume` and reset on every `build_db.py` rebuild, same
-as any other request-scoped data.
+The two `seed-*` postings are hand-written holdovers from the original
+v0 dataset, kept so the app has something to score against before any
+ingest runs. Replace them once you've ingested real postings for those
+roles.
+
+`profiles` and `resumes` are runtime tables, not CSV-seeded — they reset
+on every `build_db.py` rebuild.
 
 ## Roadmap
 
+- [x] Roles sourced from real job postings
+- [x] Per-posting storage, tracks, and per-company gaps instead of weights
+- [x] Resume upload → skill extraction → fit verdict
+- [x] Profiles with target roles
+- [ ] Ingest Product Manager Intern postings and validate the PM track list
 - [ ] Expand to more courses (target: full CS core + electives)
-- [x] Expand to more roles, sourced from real job postings — automated via
-      `scripts/ingest-role.js` (see above)
-- [ ] Automate skill extraction from course descriptions using an LLM
-      (course side is still hand-tagged; role side is now automated)
-- [ ] Add a "study plan" query: for a role's missing skills, suggest
-      which courses would close the largest gap
-- [x] Simple CLI or web frontend instead of running scripts directly —
-      `public/index.html`, served by `server.js` (see Web UI above)
-- [x] Resume upload → skill extraction → readiness match — `POST /resume`
-      reuses the same Claude-based extraction approach as role ingestion
+- [ ] Automate skill extraction from course descriptions
+- [ ] Study plan: for a role's missing skills, suggest which courses close the largest gap
+- [ ] Persist resumes across rebuilds instead of resetting them

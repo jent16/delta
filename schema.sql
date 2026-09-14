@@ -1,5 +1,10 @@
 -- Delta: Skill-gap analyzer database schema
--- Models: courses teach skills, roles require skills, students take courses
+-- Models: courses teach skills; real job postings ask for skills; a resume
+-- (or a student's completed courses) is scored against those postings.
+--
+-- There are no hand-picked weights. "What a role requires" is derived at
+-- query time from the postings ingested for it — see lib/requirements.js
+-- and readiness.py for the rule.
 
 CREATE TABLE IF NOT EXISTS skills (
     skill_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -13,10 +18,13 @@ CREATE TABLE IF NOT EXISTS courses (
     title TEXT NOT NULL
 );
 
+-- a role someone might target, e.g. 'Software Engineer Intern'. Postings are
+-- attached to a role at ingest time; the role itself carries no skill data.
 CREATE TABLE IF NOT EXISTS roles (
     role_id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
-    industry TEXT
+    industry TEXT,
+    UNIQUE (title, industry)
 );
 
 -- academic programs/majors (e.g. "Computing Science Dual Degree Program - SFU-ZJU")
@@ -40,14 +48,6 @@ CREATE TABLE IF NOT EXISTS course_skills (
     PRIMARY KEY (course_id, skill_id)
 );
 
--- junction table: many roles require many skills, with a weight for importance
-CREATE TABLE IF NOT EXISTS role_skills (
-    role_id INTEGER NOT NULL REFERENCES roles(role_id),
-    skill_id INTEGER NOT NULL REFERENCES skills(skill_id),
-    weight REAL NOT NULL DEFAULT 1.0,  -- 1.0 = core requirement, 0.5 = nice-to-have
-    PRIMARY KEY (role_id, skill_id)
-);
-
 -- tracks which courses a specific student has actually completed
 CREATE TABLE IF NOT EXISTS student_courses (
     student_id INTEGER NOT NULL,
@@ -55,30 +55,57 @@ CREATE TABLE IF NOT EXISTS student_courses (
     PRIMARY KEY (student_id, course_id)
 );
 
--- a resume a user uploaded for matching against roles
+-- one real job posting, kept as a first-class record so every requirement
+-- can be traced to the listing (and company) that asked for it
+CREATE TABLE IF NOT EXISTS job_postings (
+    posting_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    role_id INTEGER NOT NULL REFERENCES roles(role_id),
+    source TEXT NOT NULL,       -- e.g. 'adzuna', 'seed'
+    external_id TEXT NOT NULL,  -- source's own posting id
+    company TEXT,
+    title TEXT,
+    url TEXT,
+    track TEXT,                 -- specialization within the role, from lib/tracks.js
+    description TEXT,           -- text the skills were extracted from
+    fetched_at TEXT NOT NULL,   -- ISO 8601 timestamp
+    UNIQUE (source, external_id)
+);
+
+-- skills one posting asks for, as extracted by Claude at ingest time
+CREATE TABLE IF NOT EXISTS posting_skills (
+    posting_id INTEGER NOT NULL REFERENCES job_postings(posting_id),
+    skill_id INTEGER NOT NULL REFERENCES skills(skill_id),
+    level TEXT NOT NULL CHECK (level IN ('required', 'preferred')),
+    PRIMARY KEY (posting_id, skill_id)
+);
+
+-- a person using Delta, with the roles they are currently targeting
+CREATE TABLE IF NOT EXISTS profiles (
+    profile_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS profile_roles (
+    profile_id INTEGER NOT NULL REFERENCES profiles(profile_id),
+    role_id INTEGER NOT NULL REFERENCES roles(role_id),
+    PRIMARY KEY (profile_id, role_id)
+);
+
+-- a resume a user uploaded for matching against postings
 CREATE TABLE IF NOT EXISTS resumes (
     resume_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id INTEGER REFERENCES profiles(profile_id),
     filename TEXT NOT NULL,
-    inferred_industry TEXT,     -- Claude's best guess, used as a soft sort key
+    unmatched_skills TEXT,      -- JSON array: skills Claude saw that no posting asks for
+    fit_role_id INTEGER REFERENCES roles(role_id),  -- role the resume fits best today
+    fit_reasoning TEXT,         -- Claude's short explanation of that fit
     uploaded_at TEXT NOT NULL   -- ISO 8601 timestamp
 );
 
--- skills extracted from a resume's text
+-- skills extracted from a resume's text that exist in the vocabulary
 CREATE TABLE IF NOT EXISTS resume_skills (
     resume_id INTEGER NOT NULL REFERENCES resumes(resume_id),
     skill_id INTEGER NOT NULL REFERENCES skills(skill_id),
     PRIMARY KEY (resume_id, skill_id)
-);
-
--- real job postings that were ingested to derive a role's skill weights;
--- lets every role_skills weight be traced back to actual source listings
-CREATE TABLE IF NOT EXISTS job_postings (
-    posting_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    role_id INTEGER NOT NULL REFERENCES roles(role_id),
-    source TEXT NOT NULL,       -- e.g. 'adzuna'
-    external_id TEXT,           -- source's own posting id
-    company TEXT,
-    title TEXT,
-    url TEXT,
-    fetched_at TEXT NOT NULL    -- ISO 8601 timestamp
 );

@@ -1,6 +1,6 @@
 """
-Computes a readiness score per role for a given student, and lists the
-specific skills that are missing.
+Computes, for a given student, how many of each role's minimum skills their
+completed courses cover, and lists the specific skills that are missing.
 
 Usage:
     python3 readiness.py            # defaults to student_id 1
@@ -8,6 +8,8 @@ Usage:
 """
 import sqlite3
 import sys
+
+from requirements import role_requirements, coverage, role_label
 
 DB_PATH = "delta.db"
 
@@ -24,21 +26,7 @@ def get_student_skills(cur, student_id):
         """,
         (student_id,),
     )
-    rows = cur.fetchall()
-    return {sid: name for sid, name in rows}
-
-
-def get_role_requirements(cur, role_id):
-    cur.execute(
-        """
-        SELECT s.skill_id, s.name, rs.weight
-        FROM role_skills rs
-        JOIN skills s ON rs.skill_id = s.skill_id
-        WHERE rs.role_id = ?
-        """,
-        (role_id,),
-    )
-    return cur.fetchall()
+    return {sid: name for sid, name in cur.fetchall()}
 
 
 def main():
@@ -48,23 +36,25 @@ def main():
     cur = conn.cursor()
 
     student_skills = get_student_skills(cur, student_id)
+    roles = cur.execute("SELECT role_id, title, industry FROM roles").fetchall()
 
-    cur.execute("SELECT role_id, title FROM roles")
-    roles = cur.fetchall()
+    for role_id, title, industry in roles:
+        req = role_requirements(cur, role_id)
+        label = role_label(title, industry)
+        if req["postings"] == 0:
+            print(f"\n{label}: no postings ingested yet")
+            continue
 
-    for role_id, title in roles:
-        requirements = get_role_requirements(cur, role_id)
-        total_weight = sum(w for _, _, w in requirements)
-        earned_weight = sum(w for sid, _, w in requirements if sid in student_skills)
-        readiness = (earned_weight / total_weight * 100) if total_weight else 0
+        have, total, missing = coverage(student_skills, req["minimum"])
+        p_have, p_total, p_missing = coverage(student_skills, req["preferred"])
 
-        missing = [name for sid, name, w in requirements if sid not in student_skills]
-
-        print(f"\n{title}: {readiness:.0f}% ready")
+        print(f"\n{label}: {have}/{total} minimum skills (from {req['postings']} postings)")
         if missing:
-            print(f"  Missing: {', '.join(missing)}")
+            print(f"  Missing minimum: {', '.join(missing)}")
         else:
-            print("  No gaps — you meet every listed requirement.")
+            print("  Meets every minimum skill.")
+        if p_total:
+            print(f"  Preferred: {p_have}/{p_total}" + (f" — missing {', '.join(p_missing)}" if p_missing else ""))
 
     conn.close()
 

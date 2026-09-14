@@ -9,12 +9,14 @@
     color-scheme: light dark;
     --bg: #0b0d10;
     --panel: #14171c;
+    --panel2: #1b1f26;
     --border: #262b33;
     --text: #e6e9ee;
     --muted: #9aa4b2;
     --accent: #5b8cff;
     --good: #3ecf8e;
     --bad: #ff6b6b;
+    --warn: #f5b942;
   }
   * { box-sizing: border-box; }
   body {
@@ -26,8 +28,10 @@
     justify-content: center;
     padding: 2.5rem 1rem;
   }
-  main { width: 100%; max-width: 640px; }
+  main { width: 100%; max-width: 720px; }
   h1 { font-size: 1.4rem; margin: 0 0 0.25rem; }
+  h2 { font-size: 1rem; margin: 1.75rem 0 0.75rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  h3 { font-size: 0.95rem; margin: 0; }
   p.sub { color: var(--muted); margin: 0 0 2rem; font-size: 0.9rem; }
   .card {
     background: var(--panel);
@@ -37,7 +41,7 @@
     margin-bottom: 1rem;
   }
   label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.35rem; }
-  select, input[type="file"] {
+  select, input[type="file"], input[type="text"] {
     width: 100%;
     background: var(--bg);
     color: var(--text);
@@ -59,50 +63,76 @@
     font-weight: 600;
     cursor: pointer;
   }
+  button.secondary { background: var(--panel2); color: var(--text); border: 1px solid var(--border); }
   button:disabled { opacity: 0.5; cursor: default; }
-  #status { font-size: 0.85rem; color: var(--muted); margin-top: 0.75rem; min-height: 1.2em; }
-  #status.error { color: var(--bad); }
-  .role-card {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 1rem;
-  }
-  .role-name { font-weight: 600; }
-  .role-industry { font-size: 0.75rem; color: var(--muted); }
+  .status { font-size: 0.85rem; color: var(--muted); margin-top: 0.75rem; min-height: 1.2em; }
+  .status.error { color: var(--bad); }
+  .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem 1rem; }
+  .checks label { display: flex; align-items: center; gap: 0.5rem; color: var(--text); font-size: 0.88rem; margin: 0; }
+  .checks input { width: auto; }
+  .muted { color: var(--muted); font-size: 0.8rem; }
+  .fit { border-color: var(--accent); }
+  .fit .score { font-size: 1.6rem; font-weight: 700; }
+  .fit p { margin: 0.5rem 0 0; font-size: 0.9rem; line-height: 1.45; }
+  .role-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
   .badge {
-    font-size: 0.75rem;
-    font-weight: 600;
-    padding: 0.15rem 0.5rem;
-    border-radius: 999px;
-    white-space: nowrap;
+    font-size: 0.75rem; font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 999px; white-space: nowrap;
+    background: rgba(91, 140, 255, 0.15); color: var(--accent);
   }
-  .badge.match { background: rgba(62, 207, 142, 0.15); color: var(--good); }
-  .badge.gap { background: rgba(255, 107, 107, 0.15); color: var(--bad); }
-  .missing { font-size: 0.82rem; color: var(--muted); margin-top: 0.5rem; }
-  .missing b { color: var(--text); font-weight: 500; }
-  #inferredNote { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.75rem; }
-  #results { display: none; }
+  .tier { margin-top: 0.85rem; }
+  .tier .name { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.3rem; }
+  .chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+  .chip { font-size: 0.78rem; padding: 0.15rem 0.5rem; border-radius: 999px; border: 1px solid var(--border); }
+  .chip.have { background: rgba(62, 207, 142, 0.12); color: var(--good); border-color: rgba(62, 207, 142, 0.3); }
+  .chip.miss { background: rgba(255, 107, 107, 0.12); color: var(--bad); border-color: rgba(255, 107, 107, 0.3); }
+  .chip.count { color: var(--muted); }
+  details { margin-top: 0.85rem; }
+  summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); }
+  .listing { border-top: 1px solid var(--border); padding: 0.65rem 0; }
+  .listing .top { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; }
+  .listing .company { font-weight: 600; font-size: 0.9rem; }
+  .listing .title { font-size: 0.82rem; color: var(--muted); }
+  .listing a { color: var(--accent); text-decoration: none; }
+  .listing .cov { font-size: 0.8rem; white-space: nowrap; }
+  .listing .cov.good { color: var(--good); }
+  .listing .cov.warn { color: var(--warn); }
+  .listing .cov.bad { color: var(--bad); }
+  .listing .chips { margin-top: 0.4rem; }
+  .hidden { display: none; }
 </style>
 </head>
 <body>
 <main>
   <h1>Delta</h1>
-  <p class="sub">Upload a resume and see readiness against every tracked role.</p>
+  <p class="sub">Upload a resume and see what real postings ask for, what you already have, and which role you're most ready for today.</p>
 
   <form class="card" id="uploadForm">
     <div class="row">
-      <label for="function">Job function</label>
-      <select id="function" required>
-        <option value="" disabled selected>Loading roles…</option>
+      <label for="profile">Profile</label>
+      <select id="profile">
+        <option value="">Loading…</option>
       </select>
     </div>
-    <div class="row">
-      <label for="industry">Industry</label>
-      <select id="industry">
-        <option value="">Let Delta infer from my resume</option>
-      </select>
+
+    <div id="newProfile" class="hidden">
+      <div class="row">
+        <label for="profileName">Your name</label>
+        <input type="text" id="profileName" placeholder="e.g. Justin" />
+      </div>
+      <div class="row">
+        <label>Roles you're targeting</label>
+        <div class="checks" id="roleChecks"></div>
+      </div>
+      <div class="row">
+        <button type="button" class="secondary" id="saveProfileBtn">Save profile</button>
+      </div>
     </div>
+
+    <div class="row" id="targetsRow">
+      <label>Targeting</label>
+      <div class="chips" id="targetChips"></div>
+    </div>
+
     <div class="row">
       <label for="resume">Resume (PDF)</label>
       <input type="file" id="resume" accept="application/pdf" required />
@@ -110,142 +140,296 @@
     <div class="row">
       <button type="submit" id="submitBtn">Score my resume</button>
     </div>
-    <div id="status"></div>
+    <div class="status" id="status"></div>
   </form>
 
-  <div id="results"></div>
+  <div id="results" class="hidden"></div>
+
+  <h2>What employers ask for</h2>
+  <div class="card">
+    <div class="row">
+      <label for="exploreRole">Role</label>
+      <select id="exploreRole"></select>
+    </div>
+    <div id="exploreOut"></div>
+  </div>
 </main>
 
 <script>
-  const functionSelect = document.getElementById("function");
-  const industrySelect = document.getElementById("industry");
-  const statusEl = document.getElementById("status");
-  const resultsEl = document.getElementById("results");
-  const submitBtn = document.getElementById("submitBtn");
+  // ---------- tiny DOM helpers (no innerHTML with data — skill names come from Claude) ----------
+  const $ = (id) => document.getElementById(id);
+  function el(tag, attrs = {}, ...children) {
+    const node = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === "class") node.className = v;
+      else if (k === "text") node.textContent = v;
+      else node.setAttribute(k, v);
+    }
+    for (const c of children) {
+      if (c === null || c === undefined) continue;
+      node.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+    }
+    return node;
+  }
+  const chip = (text, cls = "") => el("span", { class: `chip ${cls}`, text });
+  const roleLabel = (r) => (r.industry ? `${r.title || r.role} (${r.industry})` : r.title || r.role);
 
-  // title -> Set of industries, built from GET /roles — no separate
-  // endpoint needed, the dropdowns are just a client-side view of it.
-  let rolesByTitle = new Map();
+  const statusEl = $("status");
+  function setStatus(msg, isError = false) {
+    statusEl.textContent = msg;
+    statusEl.classList.toggle("error", isError);
+  }
 
-  async function loadRoles() {
-    let data;
+  let roles = [];
+  let profiles = [];
+
+  // ---------- load roles + profiles ----------
+  async function getJSON(url, opts) {
+    const res = await fetch(url, opts);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `${url} responded ${res.status}`);
+    return data;
+  }
+
+  async function loadAll() {
     try {
-      const res = await fetch("/roles");
-      if (!res.ok) throw new Error(`server responded ${res.status}`);
-      data = await res.json();
+      [{ roles }, { profiles }] = await Promise.all([getJSON("/roles"), getJSON("/profiles")]);
     } catch (err) {
-      functionSelect.innerHTML = '<option value="" selected disabled>Failed to load roles</option>';
-      statusEl.textContent = `Couldn't reach the server at ${location.origin} — is "node server.js" running? (${err.message})`;
-      statusEl.classList.add("error");
+      setStatus(`Couldn't reach the server at ${location.origin} — is "node server.js" running? (${err.message})`, true);
+      $("profile").innerHTML = "";
+      $("profile").appendChild(el("option", { value: "", text: "Failed to load" }));
       return;
     }
-
-    rolesByTitle = new Map();
-    for (const r of data.roles) {
-      if (!rolesByTitle.has(r.title)) rolesByTitle.set(r.title, new Set());
-      if (r.industry) rolesByTitle.get(r.title).add(r.industry);
-    }
-
-    functionSelect.innerHTML = "";
-    const placeholder = document.createElement("option");
-    placeholder.value = "";
-    placeholder.textContent = "Select a role…";
-    placeholder.disabled = true;
-    placeholder.selected = true;
-    functionSelect.appendChild(placeholder);
-    for (const title of rolesByTitle.keys()) {
-      const opt = document.createElement("option");
-      opt.value = title;
-      opt.textContent = title;
-      functionSelect.appendChild(opt);
-    }
-    updateIndustryOptions();
+    renderProfileSelect();
+    renderRoleChecks();
+    renderExploreSelect();
+    renderTargets();
   }
 
-  function updateIndustryOptions() {
-    const industries = rolesByTitle.get(functionSelect.value) || new Set();
-    industrySelect.innerHTML = "";
-    const inferOpt = document.createElement("option");
-    inferOpt.value = "";
-    inferOpt.textContent = "Let Delta infer from my resume";
-    industrySelect.appendChild(inferOpt);
-    for (const industry of industries) {
-      const opt = document.createElement("option");
-      opt.value = industry;
-      opt.textContent = industry;
-      industrySelect.appendChild(opt);
+  function renderProfileSelect() {
+    const sel = $("profile");
+    sel.innerHTML = "";
+    sel.appendChild(el("option", { value: "new", text: "+ New profile" }));
+    sel.appendChild(el("option", { value: "", text: "No profile (score against every role)" }));
+    for (const p of profiles) {
+      sel.appendChild(el("option", { value: String(p.profile_id), text: `${p.name} — ${p.targetRoles.map(roleLabel).join(", ") || "no targets"}` }));
+    }
+    sel.value = profiles.length ? String(profiles[0].profile_id) : "new";
+    onProfileChange();
+  }
+
+  function renderRoleChecks() {
+    const box = $("roleChecks");
+    box.innerHTML = "";
+    for (const r of roles) {
+      const cb = el("input", { type: "checkbox", value: String(r.role_id) });
+      box.appendChild(el("label", {}, cb, `${roleLabel(r)} `, el("span", { class: "muted", text: `(${r.postings} postings)` })));
     }
   }
 
-  functionSelect.addEventListener("change", updateIndustryOptions);
-
-  function renderResults(data) {
-    resultsEl.style.display = "block";
-    resultsEl.innerHTML = "";
-
-    if (data.usedInferredIndustry) {
-      const note = document.createElement("div");
-      note.id = "inferredNote";
-      note.textContent = `No industry selected — sorted with best guess: ${data.inferredIndustry}`;
-      resultsEl.appendChild(note);
-    }
-
-    for (const r of data.results) {
-      const card = document.createElement("div");
-      card.className = "card";
-      const missing = r.missingSkills.length
-        ? `<div class="missing"><b>Missing:</b> ${r.missingSkills.join(", ")}</div>`
-        : `<div class="missing">No gaps against this role's tracked requirements.</div>`;
-      card.innerHTML = `
-        <div class="role-card">
-          <div>
-            <div class="role-name">${r.role}</div>
-            <div class="role-industry">${r.industry || ""}</div>
-          </div>
-          <span class="badge ${r.isMatch ? "match" : "gap"}">${r.readinessPercent}% ${r.isMatch ? "match" : "gap"}</span>
-        </div>
-        ${missing}
-      `;
-      resultsEl.appendChild(card);
-    }
+  function currentProfile() {
+    const v = $("profile").value;
+    return profiles.find((p) => String(p.profile_id) === v) || null;
   }
 
-  document.getElementById("uploadForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    statusEl.textContent = "";
-    statusEl.classList.remove("error");
-    resultsEl.style.display = "none";
+  function onProfileChange() {
+    const isNew = $("profile").value === "new";
+    $("newProfile").classList.toggle("hidden", !isNew);
+    renderTargets();
+  }
 
-    const fileInput = document.getElementById("resume");
-    if (!fileInput.files[0]) return;
+  function renderTargets() {
+    const box = $("targetChips");
+    box.innerHTML = "";
+    const p = currentProfile();
+    if ($("profile").value === "new") {
+      $("targetsRow").classList.add("hidden");
+      return;
+    }
+    $("targetsRow").classList.remove("hidden");
+    if (!p) { box.appendChild(chip("Every role with postings", "count")); return; }
+    if (!p.targetRoles.length) box.appendChild(chip("No targets set — scoring every role", "count"));
+    for (const r of p.targetRoles) box.appendChild(chip(roleLabel(r)));
+  }
 
-    const formData = new FormData();
-    formData.append("resume", fileInput.files[0]);
-    if (functionSelect.value) formData.append("title", functionSelect.value);
-    if (industrySelect.value) formData.append("industry", industrySelect.value);
+  $("profile").addEventListener("change", onProfileChange);
 
-    submitBtn.disabled = true;
-    statusEl.textContent = "Uploading and scoring…";
-
+  $("saveProfileBtn").addEventListener("click", async () => {
+    const name = $("profileName").value.trim();
+    const roleIds = [...$("roleChecks").querySelectorAll("input:checked")].map((c) => Number(c.value));
+    if (!name) return setStatus("Give the profile a name.", true);
     try {
-      const res = await fetch("/resume", { method: "POST", body: formData });
-      const data = await res.json();
-      if (!res.ok) {
-        statusEl.textContent = data.error || `Request failed (${res.status})`;
-        statusEl.classList.add("error");
-        return;
-      }
-      statusEl.textContent = "";
-      renderResults(data);
+      const { profile } = await getJSON("/profiles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, roleIds }),
+      });
+      profiles.push(profile);
+      renderProfileSelect();
+      $("profile").value = String(profile.profile_id);
+      onProfileChange();
+      setStatus(`Saved profile "${profile.name}".`);
     } catch (err) {
-      statusEl.textContent = `Network error: ${err.message}`;
-      statusEl.classList.add("error");
-    } finally {
-      submitBtn.disabled = false;
+      setStatus(err.message, true);
     }
   });
 
-  loadRoles();
+  // ---------- upload + score ----------
+  $("uploadForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    setStatus("");
+    $("results").classList.add("hidden");
+    const file = $("resume").files[0];
+    if (!file) return;
+    if ($("profile").value === "new") return setStatus("Save the profile first, or pick an existing one.", true);
+
+    const fd = new FormData();
+    fd.append("resume", file);
+    if ($("profile").value) fd.append("profileId", $("profile").value);
+
+    $("submitBtn").disabled = true;
+    setStatus("Reading the PDF, extracting skills, scoring against postings…");
+    try {
+      const data = await getJSON("/resume", { method: "POST", body: fd });
+      setStatus("");
+      renderResults(data);
+    } catch (err) {
+      setStatus(err.message, true);
+    } finally {
+      $("submitBtn").disabled = false;
+    }
+  });
+
+  function coverageTier(name, cov, note) {
+    const box = el("div", { class: "tier" });
+    box.appendChild(el("div", { class: "name", text: `${name} — ${cov.have}/${cov.total}${note ? ` · ${note}` : ""}` }));
+    const chips = el("div", { class: "chips" });
+    if (!cov.total) chips.appendChild(chip("none rolled up yet", "count"));
+    for (const m of cov.missing) chips.appendChild(chip(m, "miss"));
+    if (cov.have) chips.appendChild(chip(`${cov.have} you have`, "have"));
+    box.appendChild(chips);
+    return box;
+  }
+
+  function covClass(l) {
+    if (!l.required.total) return "";
+    return l.requiredShare >= 0.75 ? "good" : l.requiredShare >= 0.4 ? "warn" : "bad";
+  }
+
+  function listingNode(l) {
+    const node = el("div", { class: "listing" });
+    const link = l.url ? el("a", { href: l.url, target: "_blank", rel: "noopener" }, l.title || "listing") : el("span", {}, l.title || "");
+    node.appendChild(el("div", { class: "top" },
+      el("div", {}, el("div", { class: "company", text: l.company || "Unknown company" }), el("div", { class: "title" }, link, l.track ? ` · ${l.track}` : "")),
+      el("div", { class: `cov ${covClass(l)}`, text: `${l.required.have}/${l.required.total} required · ${l.preferred.have}/${l.preferred.total} preferred` })
+    ));
+    const chips = el("div", { class: "chips" });
+    for (const m of l.required.missing) chips.appendChild(chip(m, "miss"));
+    for (const m of l.preferred.missing) chips.appendChild(chip(`${m} (preferred)`, "count"));
+    if (!l.required.missing.length && !l.preferred.missing.length) chips.appendChild(chip("nothing missing", "have"));
+    node.appendChild(chips);
+    return node;
+  }
+
+  function renderResults(data) {
+    const out = $("results");
+    out.innerHTML = "";
+    out.classList.remove("hidden");
+
+    if (data.fit) {
+      const card = el("div", { class: "card fit" });
+      card.appendChild(el("div", { class: "muted", text: "Most ready for, right now" }));
+      card.appendChild(el("div", { class: "role-head" },
+        el("h3", { text: roleLabel(data.fit) }),
+        el("span", { class: "score", text: `${data.fit.fitScore}%` })));
+      card.appendChild(el("div", { class: "muted", text: "average share of required skills covered across that role's postings" }));
+      if (data.fit.reasoning) card.appendChild(el("p", { text: data.fit.reasoning }));
+      out.appendChild(card);
+    }
+
+    const skillsCard = el("div", { class: "card" });
+    skillsCard.appendChild(el("div", { class: "muted", text: `Skills found on your resume that postings ask for (${data.matchedSkills.length})` }));
+    const mc = el("div", { class: "chips" });
+    for (const s of data.matchedSkills) mc.appendChild(chip(s, "have"));
+    if (!data.matchedSkills.length) mc.appendChild(chip("none matched the posting vocabulary", "miss"));
+    skillsCard.appendChild(mc);
+    if (data.unmatchedSkills.length) {
+      skillsCard.appendChild(el("div", { class: "muted", style: "margin-top:0.75rem", text: `Also found, but no ingested posting asks for them (${data.unmatchedSkills.length})` }));
+      const uc = el("div", { class: "chips" });
+      for (const s of data.unmatchedSkills) uc.appendChild(chip(s, "count"));
+      skillsCard.appendChild(uc);
+    }
+    out.appendChild(skillsCard);
+
+    if (!data.results.length) {
+      out.appendChild(el("div", { class: "card muted", text: "No postings ingested for the target roles yet — run the ingest script first." }));
+      return;
+    }
+
+    for (const r of data.results) {
+      const card = el("div", { class: "card" });
+      card.appendChild(el("div", { class: "role-head" },
+        el("h3", { text: roleLabel(r) }),
+        el("span", { class: "badge", text: `${r.fitScore}% · ${r.postings} postings` })));
+      card.appendChild(coverageTier("Minimum skills", r.minimum, "required by most postings"));
+      card.appendChild(coverageTier("Preferred skills", r.preferred, "asked for by some"));
+      for (const t of r.tracks) {
+        if (!t.minimum.total && !t.preferred.total) continue;
+        card.appendChild(coverageTier(`${t.track} track`, { have: t.minimum.have + t.preferred.have, total: t.minimum.total + t.preferred.total, missing: [...t.minimum.missing, ...t.preferred.missing] }, `${t.postings} postings`));
+      }
+      const det = el("details", {}, el("summary", { text: `Per company — ${r.listings.length} postings` }));
+      for (const l of r.listings) det.appendChild(listingNode(l));
+      card.appendChild(det);
+      out.appendChild(card);
+    }
+  }
+
+  // ---------- explorer: what employers ask for ----------
+  function renderExploreSelect() {
+    const sel = $("exploreRole");
+    sel.innerHTML = "";
+    sel.appendChild(el("option", { value: "", text: "Pick a role…" }));
+    for (const r of roles) sel.appendChild(el("option", { value: String(r.role_id), text: `${roleLabel(r)} — ${r.postings} postings` }));
+  }
+
+  $("exploreRole").addEventListener("change", async () => {
+    const id = $("exploreRole").value;
+    const out = $("exploreOut");
+    out.innerHTML = "";
+    if (!id) return;
+    let req;
+    try { req = await getJSON(`/roles/${id}/requirements`); } catch (err) { out.textContent = err.message; return; }
+
+    const tier = (name, list, note) => {
+      const box = el("div", { class: "tier" });
+      box.appendChild(el("div", { class: "name", text: `${name}${note ? ` · ${note}` : ""}` }));
+      const chips = el("div", { class: "chips" });
+      if (!list.length) chips.appendChild(chip("none yet", "count"));
+      for (const s of list) chips.appendChild(chip(`${s.name} · ${s.requiredIn}/${s.of} require`, ""));
+      box.appendChild(chips);
+      return box;
+    };
+    out.appendChild(el("div", { class: "muted", text: `${req.postings} postings ingested` }));
+    out.appendChild(tier("Minimum", req.minimum, "required by at least half of postings"));
+    out.appendChild(tier("Preferred", req.preferred, "mentioned by at least a fifth"));
+    for (const t of req.tracks) {
+      out.appendChild(tier(`${t.track} track`, [...t.minimum, ...t.preferred], `${t.postings} postings, beyond the role minimum`));
+    }
+    const det = el("details", {}, el("summary", { text: `Every listing (${req.listings.length})` }));
+    for (const p of req.listings) {
+      const node = el("div", { class: "listing" });
+      const link = p.url ? el("a", { href: p.url, target: "_blank", rel: "noopener" }, p.title || "listing") : el("span", {}, p.title || "");
+      node.appendChild(el("div", { class: "top" },
+        el("div", {}, el("div", { class: "company", text: p.company || "Unknown company" }), el("div", { class: "title" }, link, p.track ? ` · ${p.track}` : ""))));
+      const chips = el("div", { class: "chips" });
+      for (const s of p.skills) chips.appendChild(chip(s.level === "required" ? s.name : `${s.name} (preferred)`, s.level === "required" ? "" : "count"));
+      node.appendChild(chips);
+      det.appendChild(node);
+    }
+    out.appendChild(det);
+  });
+
+  loadAll();
 </script>
 </body>
 </html>

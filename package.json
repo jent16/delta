@@ -1,11 +1,14 @@
 {
   "name": "delta",
   "version": "1.0.0",
-  "description": "A skill-gap analyzer that models which skills SFU courses teach, which skills target internship roles require, and computes a readiness score per role based on courses a student has actually completed.",
+  "description": "A skill-gap analyzer built on real job postings: stores what each posting asks for, rolls it up per role and specialization, and scores a resume against it.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "ingest": "node scripts/ingest-role.js"
+    "start": "node server.js",
+    "ingest": "node scripts/ingest-role.js",
+    "mock": "node scripts/mock-api.js",
+    "dev": "node server.js --mock"
   },
   "repository": {
     "type": "git",

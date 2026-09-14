@@ -1,0 +1,16 @@
+source,external_id,skill_name,level
+seed,seed-backend-1,Python,required
+seed,seed-backend-1,SQL,required
+seed,seed-backend-1,Databases,required
+seed,seed-backend-1,REST APIs,required
+seed,seed-backend-1,Data Structures,required
+seed,seed-backend-1,Algorithms,required
+seed,seed-backend-1,Git,required
+seed,seed-backend-1,Express,preferred
+seed,seed-fullstack-1,JavaScript,required
+seed,seed-fullstack-1,React,required
+seed,seed-fullstack-1,Express,required
+seed,seed-fullstack-1,SQL,required
+seed,seed-fullstack-1,REST APIs,required
+seed,seed-fullstack-1,Git,required
+seed,seed-fullstack-1,Object-Oriented Design,preferred

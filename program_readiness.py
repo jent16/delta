@@ -1,13 +1,15 @@
 """
 Compares an entire academic program's curriculum (not just one student's
 completed courses) against role requirements — i.e. "if you finished
-every required course in this program, how ready would you be for each
-role, based purely on the curriculum?"
+every required course in this program, how many of each role's minimum
+skills would the curriculum alone have covered?"
 
 Usage:
     python3 program_readiness.py
 """
 import sqlite3
+
+from requirements import role_requirements, coverage, role_label
 
 DB_PATH = "delta.db"
 
@@ -26,42 +28,27 @@ def get_program_skills(cur, program_id):
     return {sid: name for sid, name in cur.fetchall()}
 
 
-def get_role_requirements(cur, role_id):
-    cur.execute(
-        """
-        SELECT s.skill_id, s.name, rs.weight
-        FROM role_skills rs
-        JOIN skills s ON rs.skill_id = s.skill_id
-        WHERE rs.role_id = ?
-        """,
-        (role_id,),
-    )
-    return cur.fetchall()
-
-
 def main():
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
 
     programs = cur.execute("SELECT program_id, name FROM programs").fetchall()
-    roles = cur.execute("SELECT role_id, title FROM roles").fetchall()
+    roles = cur.execute("SELECT role_id, title, industry FROM roles").fetchall()
 
     for program_id, program_name in programs:
         program_skills = get_program_skills(cur, program_id)
         print(f"\n=== {program_name} ===")
         print(f"Curriculum covers {len(program_skills)} distinct skills.")
 
-        for role_id, role_title in roles:
-            requirements = get_role_requirements(cur, role_id)
-            total_weight = sum(w for _, _, w in requirements)
-            covered_weight = sum(
-                w for sid, _, w in requirements if sid in program_skills
-            )
-            coverage = (covered_weight / total_weight * 100) if total_weight else 0
+        for role_id, title, industry in roles:
+            req = role_requirements(cur, role_id)
+            label = role_label(title, industry)
+            if req["postings"] == 0:
+                print(f"\n  {label}: no postings ingested yet")
+                continue
 
-            missing = [name for sid, name, w in requirements if sid not in program_skills]
-
-            print(f"\n  {role_title}: {coverage:.0f}% covered by curriculum")
+            have, total, missing = coverage(program_skills, req["minimum"])
+            print(f"\n  {label}: {have}/{total} minimum skills covered by curriculum")
             if missing:
                 print(f"    Not covered by any required course: {', '.join(missing)}")
             else:

@@ -1,6 +1,3 @@
-role_title,industry,source,external_id,company,title,url,fetched_at
-Software Engineer Intern,Technology,adzuna,5753558611,Ciena Government Solutions,Embedded Software Engineer – Intern,https://www.adzuna.ca/details/5753558611?utm_medium=api&utm_source=7a1ab04d,2026-08-04T02:30:41.665Z
-Software Engineer Intern,Technology,adzuna,5485042839,Viggle AI,Software Engineer (intern/co-op),https://www.adzuna.ca/details/5485042839?utm_medium=api&utm_source=7a1ab04d,2026-08-04T02:30:41.665Z
-Software Engineer Intern,Technology,adzuna,5819849677,Ciena Government Solutions,Software Engineering Intern (4 Months),https://www.adzuna.ca/details/5819849677?utm_medium=api&utm_source=7a1ab04d,2026-08-04T02:30:41.665Z
-Software Engineer Intern,Technology,adzuna,5718166674,Cohere,Software Engineer Intern (Fall / Winter 2026),https://www.adzuna.ca/details/5718166674?utm_medium=api&utm_source=7a1ab04d,2026-08-04T02:30:41.665Z
-Software Engineer Intern,Technology,adzuna,5728364760,Super.com,Software Engineering Intern - Product (Full-Stack),https://www.adzuna.ca/details/5728364760?utm_medium=api&utm_source=7a1ab04d,2026-08-04T02:30:41.665Z
+role_title,industry,source,external_id,company,title,url,track,description,fetched_at
+Backend Engineer Intern,Fintech,seed,seed-backend-1,Seed data (hand-written),Backend Engineer Intern,,Backend,Hand-written seed posting from the v0 dataset; skills were not extracted from a real listing.,2026-07-07T00:00:00.000Z
+Full Stack Engineer Intern,General Tech,seed,seed-fullstack-1,Seed data (hand-written),Full Stack Engineer Intern,,Full-stack,Hand-written seed posting from the v0 dataset; skills were not extracted from a real listing.,2026-07-07T00:00:00.000Z

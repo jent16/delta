@@ -153,6 +153,49 @@
     </div>
     <div id="exploreOut"></div>
   </div>
+
+  <h2>Find openings</h2>
+  <p class="sub" style="margin-bottom: 0.75rem;">Curated straight from Simplify's public internship and new-grad listings — no scoring, just filtering.</p>
+  <div class="card">
+    <div class="row">
+      <label for="openingsType">Position type</label>
+      <select id="openingsType">
+        <option value="intern">Internship</option>
+        <option value="newgrad">New grad</option>
+      </select>
+    </div>
+    <div class="row" id="openingsTermRow">
+      <label for="openingsTerm">Term</label>
+      <select id="openingsTerm">
+        <option value="">Any term</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="openingsRegion">Region</label>
+      <select id="openingsRegion">
+        <option value="all">All</option>
+        <option value="us">United States</option>
+        <option value="canada">Canada</option>
+        <option value="intl">International</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="openingsCategory">Category</label>
+      <select id="openingsCategory">
+        <option value="all">All</option>
+        <option value="software">Software</option>
+        <option value="product">Product</option>
+        <option value="hardware">Hardware</option>
+        <option value="data">Data / AI / ML</option>
+        <option value="quant">Quant</option>
+      </select>
+    </div>
+    <div class="row">
+      <button type="button" class="secondary" id="openingsSearchBtn">Search</button>
+    </div>
+    <div class="status" id="openingsStatus"></div>
+  </div>
+  <div id="openingsOut"></div>
 </main>
 
 <script>
@@ -429,7 +472,82 @@
     out.appendChild(det);
   });
 
+  // ---------- find openings (Simplify data, no Claude/scoring involved) ----------
+  function openingNode(o) {
+    const node = el("div", { class: "listing" });
+    const link = o.url
+      ? el("a", { href: o.url, target: "_blank", rel: "noopener" }, o.title || "listing")
+      : el("span", {}, o.title || "");
+    node.appendChild(el("div", { class: "top" },
+      el("div", {}, el("div", { class: "company", text: o.company || "Unknown company" }), el("div", { class: "title" }, link)),
+      el("div", { class: "cov", text: o.terms.join(", ") })
+    ));
+    const chips = el("div", { class: "chips" });
+    chips.appendChild(chip(o.locations.join(" · ") || "Location n/a", "count"));
+    if (o.sponsorship) {
+      const cls = o.sponsorship === "Offers Sponsorship" ? "have" : o.sponsorship === "Does Not Offer Sponsorship" ? "miss" : "count";
+      chips.appendChild(chip(o.sponsorship, cls));
+    }
+    node.appendChild(chips);
+    return node;
+  }
+
+  // Two filters can change within milliseconds of each other (e.g. changing
+  // term then region right after); their requests can resolve out of order.
+  // Track a token per call and drop any response that isn't the latest one.
+  let openingsRequestToken = 0;
+
+  async function searchOpenings() {
+    const token = ++openingsRequestToken;
+    const type = $("openingsType").value;
+    const region = $("openingsRegion").value;
+    const category = $("openingsCategory").value;
+    const term = $("openingsTerm").value;
+    const out = $("openingsOut");
+    const status = $("openingsStatus");
+    status.classList.remove("error");
+    status.textContent = "Searching…";
+
+    let data;
+    try {
+      const params = new URLSearchParams({ type, region, category, limit: "50" });
+      if (term) params.set("term", term);
+      data = await getJSON(`/openings?${params}`);
+    } catch (err) {
+      if (token !== openingsRequestToken) return; // a newer search superseded this one
+      status.textContent = err.message;
+      status.classList.add("error");
+      return;
+    }
+    if (token !== openingsRequestToken) return; // a newer search superseded this one
+
+    out.innerHTML = "";
+    status.textContent = `${data.total} match${data.total === 1 ? "" : "es"} · showing ${data.returned}`;
+
+    if (type === "intern" && data.availableTerms.length) {
+      const termSel = $("openingsTerm");
+      const prev = termSel.value;
+      termSel.innerHTML = "";
+      termSel.appendChild(el("option", { value: "", text: "Any term" }));
+      for (const t of data.availableTerms) termSel.appendChild(el("option", { value: t, text: t }));
+      termSel.value = data.availableTerms.includes(prev) ? prev : "";
+    }
+
+    for (const o of data.listings) out.appendChild(openingNode(o));
+    if (!data.listings.length) out.appendChild(el("div", { class: "muted", text: "No matches — try widening the filters." }));
+  }
+
+  $("openingsType").addEventListener("change", () => {
+    $("openingsTermRow").classList.toggle("hidden", $("openingsType").value !== "intern");
+    searchOpenings();
+  });
+  $("openingsRegion").addEventListener("change", searchOpenings);
+  $("openingsCategory").addEventListener("change", searchOpenings);
+  $("openingsTerm").addEventListener("change", searchOpenings);
+  $("openingsSearchBtn").addEventListener("click", searchOpenings);
+
   loadAll();
+  searchOpenings();
 </script>
 </body>
 </html>

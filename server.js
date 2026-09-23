@@ -22,6 +22,7 @@ const multer = require("multer");
 const { PDFParse } = require("pdf-parse");
 const { extractResumeSkills, explainFit } = require("./lib/extract-skills");
 const { roleRequirements, scoreRole } = require("./lib/requirements");
+const { findOpenings } = require("./lib/openings");
 
 const app = express();
 const db = new Database("delta.db");
@@ -144,6 +145,25 @@ app.get("/skills", (req, res) => {
     ? db.prepare("SELECT skill_id, name, category FROM skills WHERE category = ?").all(category)
     : db.prepare("SELECT skill_id, name, category FROM skills").all();
   res.json({ skills });
+});
+
+// ---------- curated openings (Simplify, no Claude involved) ----------
+
+// GET /openings?type=intern|newgrad&term=Summer 2026&region=us|canada|intl|all&category=software|product|hardware|data|quant|all&limit=100
+app.get("/openings", async (req, res) => {
+  try {
+    const result = await findOpenings({
+      type: req.query.type,
+      term: req.query.term,
+      region: req.query.region,
+      category: req.query.category,
+      limit: req.query.limit ? parseInt(req.query.limit, 10) : undefined,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error("openings fetch failed:", err);
+    res.status(502).json({ error: `could not fetch listings: ${err.message}` });
+  }
 });
 
 // ---------- course-based readiness (student / program) ----------

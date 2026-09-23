@@ -1,7 +1,18 @@
 """
-Builds delta.db from schema.sql and the CSV files in data/.
-Run this any time you want to rebuild the database from scratch:
+Syncs delta.db from schema.sql and the CSV files in data/. Safe to run
+repeatedly: every seed table is keyed on a natural unique constraint (skill
+name, course code, (role title, industry), (posting source, external_id)),
+so re-running only adds rows that are new in the CSVs — existing rows, and
+their ids, are left alone. This is what lets resumes/profiles survive a
+rebuild: they're runtime tables, never touched here, and the role/posting
+ids they reference don't shift out from under them.
+
+Run any time the CSVs change:
     python3 build_db.py
+
+Removing a row from a CSV does NOT delete it from delta.db (there's no
+diffing/deletion sync, only additive upserts) — for a true from-scratch
+rebuild, delete delta.db first.
 """
 import sqlite3
 import csv
@@ -19,9 +30,6 @@ def load_csv(path):
 
 
 def main():
-    if os.path.exists(DB_PATH):
-        os.remove(DB_PATH)
-
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA foreign_keys = ON")
     cur = conn.cursor()
@@ -32,28 +40,28 @@ def main():
     # --- skills ---
     for row in load_csv(f"{DATA_DIR}/skills.csv"):
         cur.execute(
-            "INSERT INTO skills (name, category) VALUES (?, ?)",
+            "INSERT OR IGNORE INTO skills (name, category) VALUES (?, ?)",
             (row["name"], row["category"]),
         )
 
     # --- courses ---
     for row in load_csv(f"{DATA_DIR}/courses.csv"):
         cur.execute(
-            "INSERT INTO courses (code, title) VALUES (?, ?)",
+            "INSERT OR IGNORE INTO courses (code, title) VALUES (?, ?)",
             (row["code"], row["title"]),
         )
 
     # --- roles ---
     for row in load_csv(f"{DATA_DIR}/roles.csv"):
         cur.execute(
-            "INSERT INTO roles (title, industry) VALUES (?, ?)",
+            "INSERT OR IGNORE INTO roles (title, industry) VALUES (?, ?)",
             (row["title"], row["industry"]),
         )
 
     # --- programs ---
     for row in load_csv(f"{DATA_DIR}/programs.csv"):
         cur.execute(
-            "INSERT INTO programs (name, institution) VALUES (?, ?)",
+            "INSERT OR IGNORE INTO programs (name, institution) VALUES (?, ?)",
             (row["name"], row["institution"]),
         )
 
@@ -73,28 +81,28 @@ def main():
     # --- course_skills ---
     for row in load_csv(f"{DATA_DIR}/course_skills.csv"):
         cur.execute(
-            "INSERT INTO course_skills (course_id, skill_id) VALUES (?, ?)",
+            "INSERT OR IGNORE INTO course_skills (course_id, skill_id) VALUES (?, ?)",
             (course_id[row["course_code"]], skill_id[row["skill_name"]]),
         )
 
     # --- student_courses ---
     for row in load_csv(f"{DATA_DIR}/student_courses.csv"):
         cur.execute(
-            "INSERT INTO student_courses (student_id, course_id) VALUES (?, ?)",
+            "INSERT OR IGNORE INTO student_courses (student_id, course_id) VALUES (?, ?)",
             (int(row["student_id"]), course_id[row["course_code"]]),
         )
 
     # --- program_courses ---
     for row in load_csv(f"{DATA_DIR}/program_courses.csv"):
         cur.execute(
-            "INSERT INTO program_courses (program_id, course_id) VALUES (?, ?)",
+            "INSERT OR IGNORE INTO program_courses (program_id, course_id) VALUES (?, ?)",
             (program_id[row["program_name"]], course_id[row["course_code"]]),
         )
 
     # --- job_postings ---
     for row in load_csv(f"{DATA_DIR}/job_postings.csv"):
         cur.execute(
-            """INSERT INTO job_postings
+            """INSERT OR IGNORE INTO job_postings
                (role_id, source, external_id, company, title, url, track, description, fetched_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
@@ -132,7 +140,7 @@ def main():
 
     conn.commit()
     conn.close()
-    print(f"Built {DB_PATH} from {DATA_DIR}/ successfully.")
+    print(f"Synced {DB_PATH} from {DATA_DIR}/ (existing rows and runtime data left untouched).")
 
 
 if __name__ == "__main__":

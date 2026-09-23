@@ -57,9 +57,22 @@ only pay for listings you haven't seen.
 ```bash
 npm install
 cp .env.example .env    # fill in ADZUNA_APP_ID, ADZUNA_APP_KEY, ANTHROPIC_API_KEY
-python3 build_db.py     # builds delta.db from schema.sql + data/*.csv
+python3 build_db.py     # syncs delta.db from schema.sql + data/*.csv (safe to re-run — see below)
 node server.js          # http://localhost:3000
 ```
+
+`build_db.py` is additive, not destructive: it never deletes `delta.db`,
+and every seed table is upserted by its natural unique key (skill name,
+course code, `(role title, industry)`, `(posting source, external_id)`),
+so existing rows — and their ids — don't shift on a re-run. That's what
+lets `resumes`/`profiles` survive it: they're never touched at all. If you
+remove a row from a CSV it stays in the database (no deletion sync); for a
+true from-scratch rebuild, delete `delta.db` first.
+
+**Remember to restart `node server.js` after running `build_db.py`** — the
+running server holds its own open connection to the old file and won't
+pick up changes made while it's running. (Fixing this automatically is a
+known open item — see Roadmap.)
 
 The Python scripts need only the standard library. Node is required for
 the server and the ingest script.
@@ -179,8 +192,8 @@ v0 dataset, kept so the app has something to score against before any
 ingest runs. Replace them once you've ingested real postings for those
 roles.
 
-`profiles` and `resumes` are runtime tables, not CSV-seeded — they reset
-on every `build_db.py` rebuild.
+`profiles` and `resumes` are runtime tables, not CSV-seeded — `build_db.py`
+never touches them, so they survive a rebuild.
 
 ## Roadmap
 
@@ -192,4 +205,6 @@ on every `build_db.py` rebuild.
 - [ ] Expand to more courses (target: full CS core + electives)
 - [ ] Automate skill extraction from course descriptions
 - [ ] Study plan: for a role's missing skills, suggest which courses close the largest gap
-- [ ] Persist resumes across rebuilds instead of resetting them
+- [x] Persist resumes across rebuilds instead of resetting them
+- [ ] Have the running server detect `delta.db` was rebuilt and reopen it,
+      instead of silently serving a stale connection until restarted

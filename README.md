@@ -69,10 +69,10 @@ lets `resumes`/`profiles` survive it: they're never touched at all. If you
 remove a row from a CSV it stays in the database (no deletion sync); for a
 true from-scratch rebuild, delete `delta.db` first.
 
-**Remember to restart `node server.js` after running `build_db.py`** — the
-running server holds its own open connection to the old file and won't
-pick up changes made while it's running. (Fixing this automatically is a
-known open item — see Roadmap.)
+No need to restart `node server.js` after running `build_db.py` — since it
+writes into the same file instead of deleting and recreating it, an
+already-running server's connection sees the new rows on its very next
+query.
 
 The Python scripts need only the standard library. Node is required for
 the server and the ingest script.
@@ -206,5 +206,8 @@ never touches them, so they survive a rebuild.
 - [ ] Automate skill extraction from course descriptions
 - [ ] Study plan: for a role's missing skills, suggest which courses close the largest gap
 - [x] Persist resumes across rebuilds instead of resetting them
-- [ ] Have the running server detect `delta.db` was rebuilt and reopen it,
-      instead of silently serving a stale connection until restarted
+- [x] Stop the running server from serving stale data after a rebuild —
+      fixed as a side effect of the item above: build_db.py used to
+      delete-and-recreate delta.db, which left a running server holding a
+      handle to the old, unlinked file; now that it writes into the same
+      file, an open connection sees new rows on its next query, no restart

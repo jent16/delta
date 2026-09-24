@@ -40,6 +40,20 @@ function anthropicReply(body) {
         { name: "Figma", category: "tool" },
       ] },
     }];
+  } else if (tool === "record_qualifications") {
+    // vary by candidate so evidenced/not-evidenced both get exercised
+    const isPM = /Product Manager|roadmap|stakeholder/i.test(userText);
+    content = [{
+      type: "tool_use", id: "toolu_3", name: "record_qualifications",
+      input: { qualifications: [
+        { name: "Product Sense", evidenced: isPM, evidence: isPM ? "led feature prioritization for a campus app" : "" },
+        { name: "Data-Driven Decision Making", evidenced: true, evidence: "used usage metrics to guide a redesign" },
+        { name: "Cross-Functional Collaboration", evidenced: true, evidence: "worked with engineers and designers on FallHacks project" },
+        { name: "Communication & Storytelling", evidenced: false, evidence: "" },
+        { name: "Strategic & Business Acumen", evidenced: false, evidence: "" },
+        { name: "Execution & Ownership", evidenced: true, evidence: "shipped hackathon project end to end in 24 hours" },
+      ] },
+    }];
   } else {
     content = [{ type: "text", text: "MOCK REASONING: you are most ready for the role with the highest score above." }];
   }

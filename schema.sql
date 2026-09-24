@@ -101,6 +101,10 @@ CREATE TABLE IF NOT EXISTS resumes (
     profile_id INTEGER REFERENCES profiles(profile_id),
     filename TEXT NOT NULL,
     unmatched_skills TEXT,      -- JSON array: skills Claude saw that no posting asks for
+    qualifications TEXT,        -- JSON object: {roleTitle: [{name, evidenced, evidence}]},
+                                 -- for roles scored by qualification checklist instead of
+                                 -- posting-derived skills (see lib/qualifications.js) —
+                                 -- computed once at upload time so re-scoring stays free
     fit_role_id INTEGER REFERENCES roles(role_id),  -- role the resume fits best today
     fit_reasoning TEXT,         -- Claude's short explanation of that fit
     uploaded_at TEXT NOT NULL   -- ISO 8601 timestamp

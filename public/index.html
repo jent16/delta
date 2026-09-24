@@ -369,6 +369,22 @@
     }
   });
 
+  // For roles in lib/qualifications.js — assessed directly against a fixed
+  // checklist from resume text, not posting-derived skills. Shows evidence
+  // Claude cited for each, not just a chip label, since "why" matters more
+  // here than for a skill name.
+  function qualificationsBlock(qualifications) {
+    const box = el("div", { class: "tier" });
+    const have = qualifications.filter((q) => q.evidenced).length;
+    box.appendChild(el("div", { class: "name", text: `Qualifications — ${have}/${qualifications.length} evidenced` }));
+    const list = el("div", { class: "chips" });
+    for (const q of qualifications) {
+      list.appendChild(chip(q.evidence ? `${q.name}: ${q.evidence}` : q.name, q.evidenced ? "have" : "miss"));
+    }
+    box.appendChild(list);
+    return box;
+  }
+
   function coverageTier(name, cov, note) {
     const box = el("div", { class: "tier" });
     box.appendChild(el("div", { class: "name", text: `${name} — ${cov.have}/${cov.total}${note ? ` · ${note}` : ""}` }));
@@ -411,7 +427,12 @@
       card.appendChild(el("div", { class: "role-head" },
         el("h3", { text: roleLabel(data.fit) }),
         el("span", { class: "score", text: `${data.fit.fitScore}%` })));
-      card.appendChild(el("div", { class: "muted", text: "average share of required skills covered across that role's postings" }));
+      card.appendChild(el("div", {
+        class: "muted",
+        text: data.fit.qualifications
+          ? "assessed against a fixed qualification checklist, not posting-derived skills"
+          : "average share of required skills covered across that role's postings",
+      }));
       const fitIndustries = industriesNote(data.fit.industries);
       if (fitIndustries) card.appendChild(fitIndustries);
       if (data.fit.reasoning) card.appendChild(el("p", { text: data.fit.reasoning }));
@@ -444,11 +465,15 @@
         el("span", { class: "badge", text: `${r.fitScore}% · ${r.postings} postings` })));
       const resultIndustries = industriesNote(r.industries);
       if (resultIndustries) card.appendChild(resultIndustries);
-      card.appendChild(coverageTier("Minimum skills", r.minimum, "required by most postings"));
-      card.appendChild(coverageTier("Preferred skills", r.preferred, "asked for by some"));
-      for (const t of r.tracks) {
-        if (!t.minimum.total && !t.preferred.total) continue;
-        card.appendChild(coverageTier(`${t.track} track`, { have: t.minimum.have + t.preferred.have, total: t.minimum.total + t.preferred.total, missing: [...t.minimum.missing, ...t.preferred.missing] }, `${t.postings} postings`));
+      if (r.qualifications) {
+        card.appendChild(qualificationsBlock(r.qualifications));
+      } else {
+        card.appendChild(coverageTier("Minimum skills", r.minimum, "required by most postings"));
+        card.appendChild(coverageTier("Preferred skills", r.preferred, "asked for by some"));
+        for (const t of r.tracks) {
+          if (!t.minimum.total && !t.preferred.total) continue;
+          card.appendChild(coverageTier(`${t.track} track`, { have: t.minimum.have + t.preferred.have, total: t.minimum.total + t.preferred.total, missing: [...t.minimum.missing, ...t.preferred.missing] }, `${t.postings} postings`));
+        }
       }
       const det = el("details", {}, el("summary", { text: `Per company — ${r.listings.length} postings` }));
       for (const l of r.listings) det.appendChild(listingNode(l));
@@ -485,10 +510,23 @@
     out.appendChild(el("div", { class: "muted", text: `${req.postings} postings ingested` }));
     const exploreIndustries = industriesNote(req.industries);
     if (exploreIndustries) out.appendChild(exploreIndustries);
-    out.appendChild(tier("Minimum", req.minimum, "required by at least half of postings"));
-    out.appendChild(tier("Preferred", req.preferred, "mentioned by at least a fifth"));
-    for (const t of req.tracks) {
-      out.appendChild(tier(`${t.track} track`, [...t.minimum, ...t.preferred], `${t.postings} postings, beyond the role minimum`));
+    if (req.qualifications) {
+      out.appendChild(el("div", {
+        class: "muted",
+        text: "This role is scored against a fixed qualification checklist from resume text, not posting-derived skills — upload a resume to see it assessed.",
+      }));
+      const box = el("div", { class: "tier" });
+      box.appendChild(el("div", { class: "name", text: "Qualifications checked" }));
+      const chips = el("div", { class: "chips" });
+      for (const name of req.qualifications) chips.appendChild(chip(name, ""));
+      box.appendChild(chips);
+      out.appendChild(box);
+    } else {
+      out.appendChild(tier("Minimum", req.minimum, "required by at least half of postings"));
+      out.appendChild(tier("Preferred", req.preferred, "mentioned by at least a fifth"));
+      for (const t of req.tracks) {
+        out.appendChild(tier(`${t.track} track`, [...t.minimum, ...t.preferred], `${t.postings} postings, beyond the role minimum`));
+      }
     }
     const det = el("details", {}, el("summary", { text: `Every listing (${req.listings.length})` }));
     for (const p of req.listings) {

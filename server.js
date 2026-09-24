@@ -20,8 +20,9 @@ const express = require("express");
 const Database = require("better-sqlite3");
 const multer = require("multer");
 const { PDFParse } = require("pdf-parse");
-const { extractResumeSkills, explainFit } = require("./lib/extract-skills");
-const { roleRequirements, scoreRole } = require("./lib/requirements");
+const { extractResumeSkills, assessQualifications, explainFit } = require("./lib/extract-skills");
+const { roleRequirements, scoreRole, scoreQualificationRole } = require("./lib/requirements");
+const { qualificationsForRole } = require("./lib/qualifications");
 const { findOpenings } = require("./lib/openings");
 
 const app = express();
@@ -106,10 +107,22 @@ function getProfile(profileId) {
 }
 
 // Score a skill set against target roles (for the detailed view) and against
-// every role (to find the best fit today). Pure SQL, no Claude.
-function scoreSkillSet(haveIds, targetRoleIds) {
+// every role (to find the best fit today). No Claude call here — for
+// qualifications-based roles (lib/qualifications.js), `qualificationsAssessment`
+// must already be the cached {roleTitle: [{name,evidenced,evidence}]} from
+// resumes.qualifications, computed once at upload time. Without it (e.g. the
+// course-based readiness paths, which have no resume text to assess),
+// qualifications-based roles are excluded rather than scored as 0%.
+function scoreSkillSet(haveIds, targetRoleIds, qualificationsAssessment) {
   const roles = allRoles().filter((r) => r.postings > 0);
-  const scoredAll = roles.map((r) => scoreRole(db, r, haveIds));
+  const scoredAll = roles
+    .map((r) => {
+      const quals = qualificationsForRole(r.title);
+      if (!quals) return scoreRole(db, r, haveIds);
+      const assessment = qualificationsAssessment && qualificationsAssessment[r.title];
+      return assessment ? scoreQualificationRole(db, r, quals, assessment) : null;
+    })
+    .filter(Boolean);
   const targets = new Set((targetRoleIds || []).map(Number));
   const results = targets.size
     ? scoredAll.filter((r) => targets.has(r.roleId))
@@ -133,7 +146,10 @@ app.get("/roles/:roleId/requirements", (req, res) => {
   if (isNaN(roleId)) return res.status(400).json({ error: "roleId must be a number" });
   const role = db.prepare("SELECT role_id, title FROM roles WHERE role_id = ?").get(roleId);
   if (!role) return res.status(404).json({ error: "role not found" });
-  res.json({ role: role.title, ...roleRequirements(db, roleId) });
+  // names only, no evidence — evidence requires a specific resume's text,
+  // which this general "what employers ask for" view doesn't have
+  const qualifications = qualificationsForRole(role.title);
+  res.json({ role: role.title, qualifications, ...roleRequirements(db, roleId) });
 });
 
 // GET /skills — the full skill vocabulary, optionally ?category=language
@@ -245,7 +261,8 @@ app.put("/profiles/:profileId", (req, res) => {
 
 function resumeResponse(resume, targetRoleIds) {
   const haveIds = getResumeSkillIds(resume.resume_id);
-  const { results, fit } = scoreSkillSet(haveIds, targetRoleIds);
+  const qualificationsAssessment = resume.qualifications ? JSON.parse(resume.qualifications) : null;
+  const { results, fit } = scoreSkillSet(haveIds, targetRoleIds, qualificationsAssessment);
   const matched = db
     .prepare(
       `SELECT s.name FROM resume_skills rs JOIN skills s ON s.skill_id = rs.skill_id
@@ -264,6 +281,7 @@ function resumeResponse(resume, targetRoleIds) {
           roleId: fit.roleId,
           role: fit.role,
           industries: fit.industries,
+          qualifications: fit.qualifications || null,
           fitScore: fit.fitScore,
           reasoning: resume.fit_reasoning,
         }
@@ -316,6 +334,23 @@ app.post("/resume", upload.single("resume"), async (req, res) => {
     return res.status(502).json({ error: `skill extraction failed: ${err.message}` });
   }
 
+  // Roles scored by a fixed qualification checklist instead of posting-derived
+  // skills (lib/qualifications.js) need their own resume-text assessment.
+  // Best-effort: a failure here shouldn't fail the whole upload, same as the
+  // fit explanation below — that role just won't be scorable this time.
+  const qualRoles = allRoles()
+    .filter((r) => r.postings > 0)
+    .map((r) => ({ role: r, quals: qualificationsForRole(r.title) }))
+    .filter((x) => x.quals);
+  const qualificationsByRole = {};
+  for (const { role, quals } of qualRoles) {
+    try {
+      qualificationsByRole[role.title] = await assessQualifications(text, quals);
+    } catch (err) {
+      console.error(`qualifications assessment failed for ${role.title}:`, err);
+    }
+  }
+
   // Match against the vocabulary only. Skills no posting has ever asked for
   // are kept for display but not added to the vocabulary.
   const matchedIds = new Set();
@@ -329,17 +364,22 @@ app.post("/resume", upload.single("resume"), async (req, res) => {
   const resumeId = db.transaction(() => {
     const id = db
       .prepare(
-        "INSERT INTO resumes (profile_id, filename, unmatched_skills, uploaded_at) VALUES (?, ?, ?, ?)"
+        "INSERT INTO resumes (profile_id, filename, unmatched_skills, qualifications, uploaded_at) VALUES (?, ?, ?, ?, ?)"
       )
-      .run(profileId, req.file.originalname, JSON.stringify(unmatched), new Date().toISOString())
-      .lastInsertRowid;
+      .run(
+        profileId,
+        req.file.originalname,
+        JSON.stringify(unmatched),
+        Object.keys(qualificationsByRole).length ? JSON.stringify(qualificationsByRole) : null,
+        new Date().toISOString()
+      ).lastInsertRowid;
     const ins = db.prepare("INSERT OR IGNORE INTO resume_skills (resume_id, skill_id) VALUES (?, ?)");
     for (const sid of matchedIds) ins.run(id, sid);
     return id;
   })();
 
   // Deterministic scoring first; Claude only explains the numbers.
-  const { fit, scoredAll } = scoreSkillSet(matchedIds, targetRoleIds);
+  const { fit, scoredAll } = scoreSkillSet(matchedIds, targetRoleIds, qualificationsByRole);
   let reasoning = null;
   if (fit) {
     try {

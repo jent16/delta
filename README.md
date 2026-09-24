@@ -47,11 +47,29 @@ several industries — "Backend Engineer Intern" postings from a bank and a
 rideshare company are both valid, and get tagged Fintech and
 Automotive/Transportation respectively, not one blanket label.
 
-**Cost.** Claude is called once per posting at ingest, and twice per
-resume upload (extract skills, explain the fit). Everything after that —
-re-scoring, per-company views, adding a role to a profile — is pure SQL
-and free. Re-running an ingest skips postings already stored, so you
-only pay for listings you haven't seen.
+**Some roles aren't well modeled by extracted technical skills at all.**
+Product Manager postings ask for judgment and experience, not a
+tool/language list — and in practice, Adzuna's snippet rarely even
+reaches a PM posting's requirements section before running out of
+characters (confirmed by inspecting the raw stored text: the ~500 char
+cap gets eaten entirely by generic "our values" company-intro boilerplate
+first). Every one of 25 real Product Manager Intern postings ingested
+extracted zero skills, required or preferred — not a bug, a genuine
+mismatch between this model and how PM listings are written. For roles
+listed in `lib/qualifications.js`, a resume is scored directly against a
+fixed qualification checklist instead — same closed-list-Claude-judges-
+against idea as tracks and industries, just applied to the resume instead
+of a posting. See **Qualifications-based roles** below.
+
+**Cost.** Claude is called once per posting at ingest, twice per resume
+upload (extract skills, explain the fit), plus once more per
+qualifications-based role being scored (currently just one: Product
+Manager Intern). Everything after that — re-scoring, per-company views,
+adding a role to a profile — is pure SQL and free, including for
+qualifications-based roles: the assessment is computed once at upload
+time and cached on the `resumes` row, so `GET /resume/:id` never calls
+Claude. Re-running an ingest skips postings already stored, so you only
+pay for listings you haven't seen.
 
 ## Schema
 
@@ -62,7 +80,8 @@ only pay for listings you haven't seen.
 - `job_postings` — one real listing, with its company, track, industry, and source text
 - `posting_skills` — what one posting asks for, as `required` or `preferred`
 - `profiles` / `profile_roles` — a person and the roles they're targeting
-- `resumes` / `resume_skills` — an upload, its matched skills, and its fit verdict
+- `resumes` / `resume_skills` — an upload, its matched skills, its fit
+  verdict, and cached qualification-checklist results where applicable
 - `programs` / `program_courses` — a curriculum, for program-level coverage
 
 ## Setup
@@ -125,6 +144,34 @@ Known limitation: Adzuna's search API returns a truncated description
 snippet, not the full posting text, so extraction quality is bounded by
 that snippet. Good enough to find signal across many postings; not a
 substitute for reading the full job description.
+
+## Qualifications-based roles
+
+For roles listed in `lib/qualifications.js` (currently just `Product
+Manager Intern`), resume scoring skips the posting-derived skills path
+entirely. On upload, `assessQualifications()` in `lib/extract-skills.js`
+sends the resume text plus a fixed list of qualifications (e.g. "Product
+Sense", "Data-Driven Decision Making") and Claude judges each one
+`evidenced: true/false` against the candidate's actual experience — not
+keyword presence — with a short quoted reason for each. That result is
+cached as JSON on the `resumes` row (`qualifications` column), so
+`GET /resume/:id` re-scores for free like everything else; it's only
+computed fresh on upload.
+
+Real postings and industries for these roles still come from the same
+ingestion pipeline and are still shown (company list, real industries
+spanned) — there just aren't posting-derived skill requirements to roll
+up, since none were ever extracted. `fitScore` is simply the share of
+qualifications evidenced (e.g. 5/6 = 83%).
+
+Course-based readiness (`GET /readiness/:studentId`,
+`GET /program-readiness/:programId`) has no resume text to assess, so
+qualifications-based roles are excluded from those results entirely
+rather than shown as a false 0%.
+
+Add a role to this list by adding an entry to
+`QUALIFICATIONS_BY_ROLE` in `lib/qualifications.js` — a short array of
+broad, checkable competencies, not a skills vocabulary.
 
 ## Web UI
 
@@ -278,10 +325,13 @@ never touches them, so they survive a rebuild.
       is browsable, but currently has no derivable minimum/preferred skills
       at all — a resume scores 0% against it either way, for lack of
       anything to compare against
-- [ ] Fix Product Manager Intern's skill data — likely needs fetching each
-      posting's full text via its own URL instead of relying on Adzuna's
-      snippet, at least for this role; a real scoping decision, not
-      started
+- [x] Fix Product Manager Intern having no scorable requirements — not
+      by fetching full posting text (that's still a real option, just not
+      the one taken); instead resumes targeting qualifications-based roles
+      (`lib/qualifications.js`) are scored directly against a fixed
+      competency checklist assessed from the resume text itself, since PM
+      is inherently a judgment-and-experience role, not a tool/language
+      checklist. See "Qualifications-based roles" above
 - [ ] Expand to more courses (target: full CS core + electives)
 - [ ] Automate skill extraction from course descriptions
 - [ ] Study plan: for a role's missing skills, suggest which courses close the largest gap

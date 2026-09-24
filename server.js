@@ -78,9 +78,9 @@ function getResumeSkillIds(resumeId) {
 function allRoles() {
   return db
     .prepare(
-      `SELECT r.role_id, r.title, r.industry, COUNT(jp.posting_id) AS postings
+      `SELECT r.role_id, r.title, COUNT(jp.posting_id) AS postings
        FROM roles r LEFT JOIN job_postings jp ON jp.role_id = r.role_id
-       GROUP BY r.role_id ORDER BY r.title, r.industry`
+       GROUP BY r.role_id ORDER BY r.title`
     )
     .all();
 }
@@ -97,7 +97,7 @@ function getProfile(profileId) {
   if (!profile) return null;
   profile.targetRoles = db
     .prepare(
-      `SELECT r.role_id, r.title, r.industry
+      `SELECT r.role_id, r.title
        FROM profile_roles pr JOIN roles r ON r.role_id = pr.role_id
        WHERE pr.profile_id = ? ORDER BY r.title`
     )
@@ -131,11 +131,9 @@ app.get("/roles", (req, res) => {
 app.get("/roles/:roleId/requirements", (req, res) => {
   const roleId = parseInt(req.params.roleId, 10);
   if (isNaN(roleId)) return res.status(400).json({ error: "roleId must be a number" });
-  const role = db
-    .prepare("SELECT role_id, title, industry FROM roles WHERE role_id = ?")
-    .get(roleId);
+  const role = db.prepare("SELECT role_id, title FROM roles WHERE role_id = ?").get(roleId);
   if (!role) return res.status(404).json({ error: "role not found" });
-  res.json({ role: role.title, industry: role.industry, ...roleRequirements(db, roleId) });
+  res.json({ role: role.title, ...roleRequirements(db, roleId) });
 });
 
 // GET /skills — the full skill vocabulary, optionally ?category=language
@@ -259,7 +257,7 @@ function resumeResponse(resume, targetRoleIds) {
       ? {
           roleId: fit.roleId,
           role: fit.role,
-          industry: fit.industry,
+          industries: fit.industries,
           fitScore: fit.fitScore,
           reasoning: resume.fit_reasoning,
         }
@@ -340,9 +338,7 @@ app.post("/resume", upload.single("resume"), async (req, res) => {
   if (fit) {
     try {
       reasoning = await explainFit({
-        targetRoles: rolesById(targetRoleIds).map((r) =>
-          r.industry ? `${r.title} (${r.industry})` : r.title
-        ),
+        targetRoles: rolesById(targetRoleIds).map((r) => r.title),
         scored: scoredAll,
         resumeSkillNames: vocab.filter((s) => matchedIds.has(s.skill_id)).map((s) => s.name),
       });

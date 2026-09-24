@@ -13,6 +13,7 @@ function anthropicReply(body) {
       type: "tool_use", id: "toolu_1", name: "record_posting",
       input: {
         track: isML ? "ML/AI" : "Backend",
+        industry: isML ? "Enterprise Software" : "Fintech",
         skills: isML
           ? [
               { name: "python", category: "language", level: "required" },

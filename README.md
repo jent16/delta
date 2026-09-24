@@ -35,6 +35,18 @@ from a fixed list in `lib/tracks.js` that Claude picks from at ingest
 time, so postings group cleanly instead of scattering across "ML",
 "Machine Learning", and "AI". Add a track by adding a string.
 
+**Industry is a property of the posting, not the role, and it's
+classified, not asserted.** Earlier versions let you pass `--industry
+Fintech` when ingesting a role — that just meant "trust me," with nothing
+checking whether the postings pulled were actually from financial
+companies. Now Claude classifies each posting's employer sector from its
+company name and content, into a fixed list in `lib/industries.js` (same
+"ML"/"Machine Learning"/"AI" fragmentation problem tracks solve, applied
+to employer sector instead of specialization). A role's postings can span
+several industries — "Backend Engineer Intern" postings from a bank and a
+rideshare company are both valid, and get tagged Fintech and
+Automotive/Transportation respectively, not one blanket label.
+
 **Cost.** Claude is called once per posting at ingest, and twice per
 resume upload (extract skills, explain the fit). Everything after that —
 re-scoring, per-company views, adding a role to a profile — is pure SQL
@@ -45,8 +57,9 @@ only pay for listings you haven't seen.
 
 - `skills` — controlled vocabulary
 - `courses` / `course_skills` — SFU CS courses and what they teach
-- `roles` — targetable roles, unique on `(title, industry)`
-- `job_postings` — one real listing, with its company, track, and source text
+- `roles` — targetable roles, unique on `title` — a role is a job function;
+  it carries no industry, since its postings can span several
+- `job_postings` — one real listing, with its company, track, industry, and source text
 - `posting_skills` — what one posting asks for, as `required` or `preferred`
 - `profiles` / `profile_roles` — a person and the roles they're targeting
 - `resumes` / `resume_skills` — an upload, its matched skills, and its fit verdict
@@ -63,8 +76,8 @@ node server.js          # http://localhost:3000
 
 `build_db.py` is additive, not destructive: it never deletes `delta.db`,
 and every seed table is upserted by its natural unique key (skill name,
-course code, `(role title, industry)`, `(posting source, external_id)`),
-so existing rows — and their ids — don't shift on a re-run. That's what
+course code, role title, `(posting source, external_id)`), so existing
+rows — and their ids — don't shift on a re-run. That's what
 lets `resumes`/`profiles` survive it: they're never touched at all. If you
 remove a row from a CSV it stays in the database (no deletion sync); for a
 true from-scratch rebuild, delete `delta.db` first.
@@ -73,6 +86,11 @@ No need to restart `node server.js` after running `build_db.py` — since it
 writes into the same file instead of deleting and recreating it, an
 already-running server's connection sees the new rows on its very next
 query.
+
+One real exception: if `schema.sql` itself changes (a column added or
+removed), `CREATE TABLE IF NOT EXISTS` won't apply that to a table that
+already exists with the old shape — delete `delta.db` and rebuild in that
+case. Routine CSV-only changes never need this.
 
 The Python scripts need only the standard library. Node is required for
 the server and the ingest script.
@@ -89,9 +107,15 @@ python3 build_db.py     # rebuild delta.db with the new postings
 ```
 
 Flags: `--query` (required, Adzuna search term), `--title` (canonical role
-name, defaults to a title-cased `--query`), `--industry` (default
-`Technology`), `--limit` (postings to pull, default 15), `--country`
-(Adzuna country code, default `ca`).
+name, defaults to a title-cased `--query`), `--limit` (postings to pull,
+default 15), `--country` (Adzuna country code, default `ca`).
+
+There's no `--industry` flag — industry isn't something you assert, it's
+classified per posting by Claude from the actual company name and content
+(same call that extracts skills and picks a track, so no extra cost). A
+role like "Backend Engineer Intern" can and will span multiple industries
+across its postings; `GET /roles/:id/requirements` reports which ones its
+data actually contains, derived from the postings, not typed in by hand.
 
 If every extraction fails — bad key, no credits, network down — the script
 writes nothing and exits non-zero, rather than leaving a role with no
@@ -182,8 +206,8 @@ Seed data lives in `data/*.csv`.
 |---|---|
 | `skills.csv` | controlled vocabulary; ingestion appends to it |
 | `courses.csv` / `course_skills.csv` | SFU CS courses and what they teach |
-| `roles.csv` | targetable roles, `(title, industry)` unique |
-| `job_postings.csv` | one row per real listing, with track and source text |
+| `roles.csv` | targetable roles, `title` unique |
+| `job_postings.csv` | one row per real listing, with track, industry, and source text |
 | `posting_skills.csv` | what each posting asks for, keyed by `(source, external_id)` |
 | `student_courses.csv` / `program_courses.csv` / `programs.csv` | course-side data |
 
@@ -211,3 +235,7 @@ never touches them, so they survive a rebuild.
       delete-and-recreate delta.db, which left a running server holding a
       handle to the old, unlinked file; now that it writes into the same
       file, an open connection sees new rows on its next query, no restart
+- [x] Stop fitScore penalizing postings with zero required skills as if
+      they scored 0%
+- [x] Classify industry per posting from real company data instead of
+      trusting an operator-typed `--industry` flag

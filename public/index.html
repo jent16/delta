@@ -215,7 +215,12 @@
     return node;
   }
   const chip = (text, cls = "") => el("span", { class: `chip ${cls}`, text });
-  const roleLabel = (r) => (r.industry ? `${r.title || r.role} (${r.industry})` : r.title || r.role);
+  const roleLabel = (r) => r.title || r.role;
+  // industry lives per posting, not per role, so it's shown as chips
+  // ("which industries does this role's data span") rather than baked into
+  // the role's name the way it used to be
+  const industriesNote = (industries) =>
+    industries && industries.length ? el("div", { class: "muted", text: `Across: ${industries.join(", ")}` }) : null;
 
   const statusEl = $("status");
   function setStatus(msg, isError = false) {
@@ -363,7 +368,7 @@
     const node = el("div", { class: "listing" });
     const link = l.url ? el("a", { href: l.url, target: "_blank", rel: "noopener" }, l.title || "listing") : el("span", {}, l.title || "");
     node.appendChild(el("div", { class: "top" },
-      el("div", {}, el("div", { class: "company", text: l.company || "Unknown company" }), el("div", { class: "title" }, link, l.track ? ` · ${l.track}` : "")),
+      el("div", {}, el("div", { class: "company", text: l.company || "Unknown company" }), el("div", { class: "title" }, link, [l.track, l.industry].filter(Boolean).length ? ` · ${[l.track, l.industry].filter(Boolean).join(" · ")}` : "")),
       el("div", { class: `cov ${covClass(l)}`, text: `${l.required.have}/${l.required.total} required · ${l.preferred.have}/${l.preferred.total} preferred` })
     ));
     const chips = el("div", { class: "chips" });
@@ -386,6 +391,8 @@
         el("h3", { text: roleLabel(data.fit) }),
         el("span", { class: "score", text: `${data.fit.fitScore}%` })));
       card.appendChild(el("div", { class: "muted", text: "average share of required skills covered across that role's postings" }));
+      const fitIndustries = industriesNote(data.fit.industries);
+      if (fitIndustries) card.appendChild(fitIndustries);
       if (data.fit.reasoning) card.appendChild(el("p", { text: data.fit.reasoning }));
       out.appendChild(card);
     }
@@ -414,6 +421,8 @@
       card.appendChild(el("div", { class: "role-head" },
         el("h3", { text: roleLabel(r) }),
         el("span", { class: "badge", text: `${r.fitScore}% · ${r.postings} postings` })));
+      const resultIndustries = industriesNote(r.industries);
+      if (resultIndustries) card.appendChild(resultIndustries);
       card.appendChild(coverageTier("Minimum skills", r.minimum, "required by most postings"));
       card.appendChild(coverageTier("Preferred skills", r.preferred, "asked for by some"));
       for (const t of r.tracks) {
@@ -453,6 +462,8 @@
       return box;
     };
     out.appendChild(el("div", { class: "muted", text: `${req.postings} postings ingested` }));
+    const exploreIndustries = industriesNote(req.industries);
+    if (exploreIndustries) out.appendChild(exploreIndustries);
     out.appendChild(tier("Minimum", req.minimum, "required by at least half of postings"));
     out.appendChild(tier("Preferred", req.preferred, "mentioned by at least a fifth"));
     for (const t of req.tracks) {
@@ -463,7 +474,7 @@
       const node = el("div", { class: "listing" });
       const link = p.url ? el("a", { href: p.url, target: "_blank", rel: "noopener" }, p.title || "listing") : el("span", {}, p.title || "");
       node.appendChild(el("div", { class: "top" },
-        el("div", {}, el("div", { class: "company", text: p.company || "Unknown company" }), el("div", { class: "title" }, link, p.track ? ` · ${p.track}` : ""))));
+        el("div", {}, el("div", { class: "company", text: p.company || "Unknown company" }), el("div", { class: "title" }, link, [p.track, p.industry].filter(Boolean).length ? ` · ${[p.track, p.industry].filter(Boolean).join(" · ")}` : ""))));
       const chips = el("div", { class: "chips" });
       for (const s of p.skills) chips.appendChild(chip(s.level === "required" ? s.name : `${s.name} (preferred)`, s.level === "required" ? "" : "count"));
       node.appendChild(chips);

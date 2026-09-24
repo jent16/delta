@@ -20,11 +20,11 @@ CREATE TABLE IF NOT EXISTS courses (
 
 -- a role someone might target, e.g. 'Software Engineer Intern'. Postings are
 -- attached to a role at ingest time; the role itself carries no skill data.
+-- Industry lives on job_postings, not here — a role is a job function, and
+-- postings under it can span multiple employer sectors (see job_postings).
 CREATE TABLE IF NOT EXISTS roles (
     role_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    industry TEXT,
-    UNIQUE (title, industry)
+    title TEXT NOT NULL UNIQUE
 );
 
 -- academic programs/majors (e.g. "Computing Science Dual Degree Program - SFU-ZJU")
@@ -66,6 +66,9 @@ CREATE TABLE IF NOT EXISTS job_postings (
     title TEXT,
     url TEXT,
     track TEXT,                 -- specialization within the role, from lib/tracks.js
+    industry TEXT,               -- employer's sector, Claude-classified from lib/industries.js
+                                  -- at ingest time (NULL for hand-written seed postings, which
+                                  -- have no real company to classify)
     description TEXT,           -- text the skills were extracted from
     fetched_at TEXT NOT NULL,   -- ISO 8601 timestamp
     UNIQUE (source, external_id)

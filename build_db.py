@@ -1,8 +1,8 @@
 """
 Syncs delta.db from schema.sql and the CSV files in data/. Safe to run
 repeatedly: every seed table is keyed on a natural unique constraint (skill
-name, course code, (role title, industry), (posting source, external_id)),
-so re-running only adds rows that are new in the CSVs — existing rows, and
+name, course code, role title, (posting source, external_id)), so
+re-running only adds rows that are new in the CSVs — existing rows, and
 their ids, are left alone. This is what lets resumes/profiles survive a
 rebuild: they're runtime tables, never touched here, and the role/posting
 ids they reference don't shift out from under them.
@@ -54,8 +54,8 @@ def main():
     # --- roles ---
     for row in load_csv(f"{DATA_DIR}/roles.csv"):
         cur.execute(
-            "INSERT OR IGNORE INTO roles (title, industry) VALUES (?, ?)",
-            (row["title"], row["industry"]),
+            "INSERT OR IGNORE INTO roles (title) VALUES (?)",
+            (row["title"],),
         )
 
     # --- programs ---
@@ -70,12 +70,7 @@ def main():
     # build lookup maps now that IDs exist
     skill_id = {name: sid for sid, name in cur.execute("SELECT skill_id, name FROM skills")}
     course_id = {code: cid for cid, code in cur.execute("SELECT course_id, code FROM courses")}
-    # keyed by (title, industry) since the same title can be ingested under
-    # multiple industries as distinct roles
-    role_id = {
-        (title, industry): rid
-        for rid, title, industry in cur.execute("SELECT role_id, title, industry FROM roles")
-    }
+    role_id = {title: rid for rid, title in cur.execute("SELECT role_id, title FROM roles")}
     program_id = {name: pid for pid, name in cur.execute("SELECT program_id, name FROM programs")}
 
     # --- course_skills ---
@@ -103,16 +98,17 @@ def main():
     for row in load_csv(f"{DATA_DIR}/job_postings.csv"):
         cur.execute(
             """INSERT OR IGNORE INTO job_postings
-               (role_id, source, external_id, company, title, url, track, description, fetched_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (role_id, source, external_id, company, title, url, track, industry, description, fetched_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                role_id[(row["role_title"], row["industry"])],
+                role_id[row["role_title"]],
                 row["source"],
                 row["external_id"],
                 row["company"],
                 row["title"],
                 row["url"],
                 row["track"],
+                row["industry"] or None,
                 row["description"],
                 row["fetched_at"],
             ),

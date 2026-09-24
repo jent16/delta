@@ -156,7 +156,11 @@ Filters, all optional and composable:
 - **Position type** — which of the two datasets (intern vs. new grad)
 - **Term** — internships only (e.g. "Summer 2027"); options are populated
   from what's actually in the current filtered set, same as everywhere
-  else in this app — never a hardcoded list
+  else in this app — never a hardcoded list. Postings are pre-filtered to
+  the current term through one year out — `termWindow()` in
+  `lib/openings.js` — so an already-past "Summer 2016" or a
+  four-years-out "Fall 2029" never shows up, even before you touch the
+  filter. A posting with several terms only needs one inside the window.
 - **Region → State/Province → City** — a real drill-down, not one flat
   bucket. Location strings are free text ("San Jose, CA", "Toronto, ON,
   Canada", bare "London"); `parseLocation()` in `lib/openings.js` extracts

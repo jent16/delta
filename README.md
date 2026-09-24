@@ -138,6 +138,45 @@ no build step:
   preferred, and track, and a per-company list of every posting.
 - **What employers ask for** — browse any role's rolled-up requirements
   and the individual listings behind them.
+- **Find openings** — a separate, unscored browser of real internship/new-grad
+  postings (see below), not connected to the ingestion/scoring pipeline.
+
+## Find openings
+
+A curated browser over Simplify's public listings — no scoring, no Claude,
+just fetching and filtering. Fully separate from everything above: it
+doesn't touch `roles`/`job_postings`, and there's nothing to ingest.
+
+Source: `SimplifyJobs/Summer2027-Internships` and `SimplifyJobs/New-Grad-Positions`
+on GitHub — public, no auth, updated daily. `lib/openings.js` fetches and
+caches each dataset for an hour, then filters in memory.
+
+Filters, all optional and composable:
+
+- **Position type** — which of the two datasets (intern vs. new grad)
+- **Term** — internships only (e.g. "Summer 2027"); options are populated
+  from what's actually in the current filtered set, same as everywhere
+  else in this app — never a hardcoded list
+- **Region → State/Province → City** — a real drill-down, not one flat
+  bucket. Location strings are free text ("San Jose, CA", "Toronto, ON,
+  Canada", bare "London"); `parseLocation()` in `lib/openings.js` extracts
+  as much structure as each string actually has. State/province options
+  only appear once you've picked US or Canada, and only ever show values
+  that exist in the currently-filtered results; city cascades the same
+  way once a state's picked. International has no further breakdown —
+  the underlying location strings are too unstructured for one.
+- **Category** — Software / Product / Hardware / Data-AI-ML / Quant,
+  normalized from Simplify's inconsistent raw values ("Software" vs
+  "Software Engineering") the same way role industries are normalized
+  from a fixed list at ingest time
+- **Degree level** — Bachelor's / Master's / PhD. A posting with an empty
+  `degrees` list (unspecified) still matches any level; a posting that
+  explicitly lists only higher degrees is excluded — e.g. filtering to
+  Bachelor's drops a PhD-only listing instead of showing it anyway
+
+**Sponsorship** is real data on every listing (shown as a badge) but not
+yet filterable — a likely next addition, not built because it wasn't the
+immediate priority.
 
 ## API
 
@@ -151,6 +190,7 @@ no build step:
 | `GET /resume/:id` | re-score a stored resume against current postings. No Claude call |
 | `GET /readiness/:studentId` | course-derived skills vs every role |
 | `GET /program-readiness/:programId` | a whole curriculum vs every role |
+| `GET /openings` | curated Simplify listings — see Find openings above for all filter params |
 
 Resume skills are matched against the existing vocabulary only. A skill
 no posting has ever asked for is reported under `unmatchedSkills` rather
@@ -239,3 +279,8 @@ never touches them, so they survive a rebuild.
       they scored 0%
 - [x] Classify industry per posting from real company data instead of
       trusting an operator-typed `--industry` flag
+- [x] Find-openings region filter: drill down to state/province, then city,
+      instead of one flat US/Canada/International bucket
+- [x] Find-openings degree-level filter (Bachelor's/Master's/PhD)
+- [ ] Find-openings sponsorship filter — the data's already there
+      (shown as a badge), just not filterable yet

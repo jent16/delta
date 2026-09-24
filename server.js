@@ -147,14 +147,20 @@ app.get("/skills", (req, res) => {
 
 // ---------- curated openings (Simplify, no Claude involved) ----------
 
-// GET /openings?type=intern|newgrad&term=Summer 2026&region=us|canada|intl|all&category=software|product|hardware|data|quant|all&limit=100
+// GET /openings?type=intern|newgrad&term=Summer 2026&region=us|canada|intl|all
+//   &state=CA&city=San Jose&category=software|product|hardware|data|quant|all
+//   &degree=Bachelor's|Master's|PhD|all&limit=100
+// state/city only apply within region=us or region=canada.
 app.get("/openings", async (req, res) => {
   try {
     const result = await findOpenings({
       type: req.query.type,
       term: req.query.term,
       region: req.query.region,
+      state: req.query.state,
+      city: req.query.city,
       category: req.query.category,
+      degree: req.query.degree,
       limit: req.query.limit ? parseInt(req.query.limit, 10) : undefined,
     });
     res.json(result);

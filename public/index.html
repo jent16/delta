@@ -179,6 +179,18 @@
         <option value="intl">International</option>
       </select>
     </div>
+    <div class="row hidden" id="openingsStateRow">
+      <label for="openingsState" id="openingsStateLabel">State</label>
+      <select id="openingsState">
+        <option value="">Any</option>
+      </select>
+    </div>
+    <div class="row hidden" id="openingsCityRow">
+      <label for="openingsCity">City</label>
+      <select id="openingsCity">
+        <option value="">Any</option>
+      </select>
+    </div>
     <div class="row">
       <label for="openingsCategory">Category</label>
       <select id="openingsCategory">
@@ -188,6 +200,15 @@
         <option value="hardware">Hardware</option>
         <option value="data">Data / AI / ML</option>
         <option value="quant">Quant</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="openingsDegree">Degree level</label>
+      <select id="openingsDegree">
+        <option value="all">Any</option>
+        <option value="Bachelor's">Bachelor's</option>
+        <option value="Master's">Master's</option>
+        <option value="PhD">PhD</option>
       </select>
     </div>
     <div class="row">
@@ -495,6 +516,7 @@
     ));
     const chips = el("div", { class: "chips" });
     chips.appendChild(chip(o.locations.join(" · ") || "Location n/a", "count"));
+    if (o.degrees && o.degrees.length) chips.appendChild(chip(o.degrees.join("/"), "count"));
     if (o.sponsorship) {
       const cls = o.sponsorship === "Offers Sponsorship" ? "have" : o.sponsorship === "Does Not Offer Sponsorship" ? "miss" : "count";
       chips.appendChild(chip(o.sponsorship, cls));
@@ -508,11 +530,22 @@
   // Track a token per call and drop any response that isn't the latest one.
   let openingsRequestToken = 0;
 
+  function fillSelect(sel, values, placeholder) {
+    const prev = sel.value;
+    sel.innerHTML = "";
+    sel.appendChild(el("option", { value: "", text: placeholder }));
+    for (const v of values) sel.appendChild(el("option", { value: v, text: v }));
+    sel.value = values.includes(prev) ? prev : "";
+  }
+
   async function searchOpenings() {
     const token = ++openingsRequestToken;
     const type = $("openingsType").value;
     const region = $("openingsRegion").value;
+    const state = $("openingsState").value;
+    const city = $("openingsCity").value;
     const category = $("openingsCategory").value;
+    const degree = $("openingsDegree").value;
     const term = $("openingsTerm").value;
     const out = $("openingsOut");
     const status = $("openingsStatus");
@@ -521,8 +554,10 @@
 
     let data;
     try {
-      const params = new URLSearchParams({ type, region, category, limit: "50" });
+      const params = new URLSearchParams({ type, region, category, degree, limit: "50" });
       if (term) params.set("term", term);
+      if (state) params.set("state", state);
+      if (city) params.set("city", city);
       data = await getJSON(`/openings?${params}`);
     } catch (err) {
       if (token !== openingsRequestToken) return; // a newer search superseded this one
@@ -536,13 +571,20 @@
     status.textContent = `${data.total} match${data.total === 1 ? "" : "es"} · showing ${data.returned}`;
 
     if (type === "intern" && data.availableTerms.length) {
-      const termSel = $("openingsTerm");
-      const prev = termSel.value;
-      termSel.innerHTML = "";
-      termSel.appendChild(el("option", { value: "", text: "Any term" }));
-      for (const t of data.availableTerms) termSel.appendChild(el("option", { value: t, text: t }));
-      termSel.value = data.availableTerms.includes(prev) ? prev : "";
+      fillSelect($("openingsTerm"), data.availableTerms, "Any term");
     }
+
+    // state/city only make sense drilled into a specific region; the
+    // dropdown options themselves come from the current filtered set, same
+    // as term, so they only ever offer what actually exists
+    const showState = region === "us" || region === "canada";
+    $("openingsStateRow").classList.toggle("hidden", !showState);
+    $("openingsStateLabel").textContent = region === "canada" ? "Province" : "State";
+    if (showState) fillSelect($("openingsState"), data.availableStates, "Any");
+
+    const showCity = showState && !!state;
+    $("openingsCityRow").classList.toggle("hidden", !showCity);
+    if (showCity) fillSelect($("openingsCity"), data.availableCities, "Any");
 
     for (const o of data.listings) out.appendChild(openingNode(o));
     if (!data.listings.length) out.appendChild(el("div", { class: "muted", text: "No matches — try widening the filters." }));
@@ -552,7 +594,18 @@
     $("openingsTermRow").classList.toggle("hidden", $("openingsType").value !== "intern");
     searchOpenings();
   });
-  $("openingsRegion").addEventListener("change", searchOpenings);
+  $("openingsRegion").addEventListener("change", () => {
+    // changing region invalidates whatever state/city was picked
+    $("openingsState").value = "";
+    $("openingsCity").value = "";
+    searchOpenings();
+  });
+  $("openingsState").addEventListener("change", () => {
+    $("openingsCity").value = "";
+    searchOpenings();
+  });
+  $("openingsCity").addEventListener("change", searchOpenings);
+  $("openingsDegree").addEventListener("change", searchOpenings);
   $("openingsCategory").addEventListener("change", searchOpenings);
   $("openingsTerm").addEventListener("change", searchOpenings);
   $("openingsSearchBtn").addEventListener("click", searchOpenings);

@@ -63,13 +63,17 @@ of a posting. See **Qualifications-based roles** below.
 
 **Cost.** Claude is called once per posting at ingest, twice per resume
 upload (extract skills, explain the fit), plus once more per
-qualifications-based role being scored (currently just one: Product
-Manager Intern). Everything after that — re-scoring, per-company views,
-adding a role to a profile — is pure SQL and free, including for
+qualifications-based role actually being scored (currently just one:
+Product Manager Intern) — and a profile's targets gate that: an
+untargeted qualifications-based role is skipped entirely, not just hidden
+from the response, so a SWE-only profile never triggers the PM call at
+all. "Also check roles outside my targets" opts back into scoring (and
+paying for) every one. Everything after upload — re-scoring, per-company
+views, adding a role to a profile — is pure SQL and free, including for
 qualifications-based roles: the assessment is computed once at upload
 time and cached on the `resumes` row, so `GET /resume/:id` never calls
-Claude. Re-running an ingest skips postings already stored, so you only
-pay for listings you haven't seen.
+Claude regardless of scope. Re-running an ingest skips postings already
+stored, so you only pay for listings you haven't seen.
 
 ## Schema
 
@@ -169,6 +173,11 @@ Course-based readiness (`GET /readiness/:studentId`,
 qualifications-based roles are excluded from those results entirely
 rather than shown as a false 0%.
 
+A profile's targets gate this the same way they gate everything else
+(see Web UI, Profile) — a qualifications-based role outside a profile's
+targets is never assessed, not just hidden after the fact, unless "also
+check roles outside my targets" is on for that upload.
+
 Add a role to this list by adding an entry to
 `QUALIFICATIONS_BY_ROLE` in `lib/qualifications.js` — a short array of
 broad, checkable competencies, not a skills vocabulary.
@@ -179,10 +188,17 @@ broad, checkable competencies, not a skills vocabulary.
 no build step:
 
 - **Profile** — pick or create one, and choose the roles you're targeting.
-  Targets can change over time without re-uploading anything.
+  Targets can change over time without re-uploading anything. A profile
+  with targets set is scoped to them by default — a PM-targeting profile
+  has no reason to be checked against SWE roles, or vice versa, and for
+  qualifications-based roles (see below) that scoping means the Claude
+  call for an untargeted one simply never happens. Check "Also check
+  roles outside my targets" to opt into the old always-search-everything
+  behavior for that one upload.
 - **Upload** — the result leads with the role you're most ready for right
-  now and a short explanation, then per-target breakdowns by minimum,
-  preferred, and track, and a per-company list of every posting.
+  now (among your targets, unless broadened) and a short explanation,
+  then per-target breakdowns by minimum, preferred, and track, and a
+  per-company list of every posting.
 - **What employers ask for** — browse any role's rolled-up requirements
   and the individual listings behind them.
 - **Find openings** — a separate, unscored browser of real internship/new-grad
@@ -237,8 +253,8 @@ immediate priority.
 | `GET /roles/:id/requirements` | rolled-up minimum/preferred/tracks + every listing |
 | `GET /skills` | the vocabulary, optional `?category=` |
 | `GET /profiles`, `POST /profiles`, `PUT /profiles/:id` | manage profiles and their target roles |
-| `POST /resume` | upload a PDF; extracts, scores, explains. Fields: `resume`, optional `profileId`, optional `roleIds` |
-| `GET /resume/:id` | re-score a stored resume against current postings. No Claude call |
+| `POST /resume` | upload a PDF; extracts, scores, explains. Fields: `resume`, optional `profileId`, optional `roleIds`, optional `broadenFit` (search every role, not just targets) |
+| `GET /resume/:id` | re-score a stored resume against current postings. No Claude call. Optional `?roleIds=`, `?broaden=1` |
 | `GET /readiness/:studentId` | course-derived skills vs every role |
 | `GET /program-readiness/:programId` | a whole curriculum vs every role |
 | `GET /openings` | curated Simplify listings — see Find openings above for all filter params |
@@ -350,3 +366,7 @@ never touches them, so they survive a rebuild.
 - [x] Find-openings degree-level filter (Bachelor's/Master's/PhD)
 - [ ] Find-openings sponsorship filter — the data's already there
       (shown as a badge), just not filterable yet
+- [x] Scope resume scoring to a profile's targets by default (fit,
+      results, and which qualifications-based roles even get assessed),
+      with an opt-in to broaden — a PM-targeting profile no longer pays
+      for or sees an unrequested SWE check, and vice versa

@@ -131,6 +131,9 @@
     <div class="row" id="targetsRow">
       <label>Targeting</label>
       <div class="chips" id="targetChips"></div>
+      <div class="checks" id="broadenRow" style="margin-top: 0.5rem; grid-template-columns: 1fr;">
+        <label><input type="checkbox" id="broadenFit" /> Also check roles outside my targets</label>
+      </div>
     </div>
 
     <div class="row">
@@ -355,6 +358,7 @@
     const fd = new FormData();
     fd.append("resume", file);
     if ($("profile").value) fd.append("profileId", $("profile").value);
+    if ($("broadenFit").checked) fd.append("broadenFit", "true");
 
     $("submitBtn").disabled = true;
     setStatus("Reading the PDF, extracting skills, scoring against postings…");
@@ -423,7 +427,10 @@
 
     if (data.fit) {
       const card = el("div", { class: "card fit" });
-      card.appendChild(el("div", { class: "muted", text: "Most ready for, right now" }));
+      card.appendChild(el("div", {
+        class: "muted",
+        text: data.scopedToTargets ? "Most ready for, right now — among your targets" : "Most ready for, right now — searched every role",
+      }));
       card.appendChild(el("div", { class: "role-head" },
         el("h3", { text: roleLabel(data.fit) }),
         el("span", { class: "score", text: `${data.fit.fitScore}%` })));

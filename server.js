@@ -113,8 +113,17 @@ function getProfile(profileId) {
 // resumes.qualifications, computed once at upload time. Without it (e.g. the
 // course-based readiness paths, which have no resume text to assess),
 // qualifications-based roles are excluded rather than scored as 0%.
-function scoreSkillSet(haveIds, targetRoleIds, qualificationsAssessment) {
-  const roles = allRoles().filter((r) => r.postings > 0);
+//
+// When `scopeToTargets` is true and targetRoleIds is non-empty, "fit" only
+// ever considers those targeted roles — a PM-targeting profile has no
+// reason to be silently checked against SWE roles, or vice versa. Pass
+// false (the "also check other roles" opt-in) to search every role like
+// before. With no targets at all, scope is meaningless and everything is
+// searched regardless, same as always.
+function scoreSkillSet(haveIds, targetRoleIds, qualificationsAssessment, scopeToTargets) {
+  const targets = new Set((targetRoleIds || []).map(Number));
+  const baseRoles = allRoles().filter((r) => r.postings > 0);
+  const roles = scopeToTargets && targets.size ? baseRoles.filter((r) => targets.has(r.role_id)) : baseRoles;
   const scoredAll = roles
     .map((r) => {
       const quals = qualificationsForRole(r.title);
@@ -123,7 +132,6 @@ function scoreSkillSet(haveIds, targetRoleIds, qualificationsAssessment) {
       return assessment ? scoreQualificationRole(db, r, quals, assessment) : null;
     })
     .filter(Boolean);
-  const targets = new Set((targetRoleIds || []).map(Number));
   const results = targets.size
     ? scoredAll.filter((r) => targets.has(r.roleId))
     : scoredAll;
@@ -259,10 +267,10 @@ app.put("/profiles/:profileId", (req, res) => {
 
 // ---------- resumes ----------
 
-function resumeResponse(resume, targetRoleIds) {
+function resumeResponse(resume, targetRoleIds, scopeToTargets) {
   const haveIds = getResumeSkillIds(resume.resume_id);
   const qualificationsAssessment = resume.qualifications ? JSON.parse(resume.qualifications) : null;
-  const { results, fit } = scoreSkillSet(haveIds, targetRoleIds, qualificationsAssessment);
+  const { results, fit } = scoreSkillSet(haveIds, targetRoleIds, qualificationsAssessment, scopeToTargets);
   const matched = db
     .prepare(
       `SELECT s.name FROM resume_skills rs JOIN skills s ON s.skill_id = rs.skill_id
@@ -276,6 +284,7 @@ function resumeResponse(resume, targetRoleIds) {
     filename: resume.filename,
     matchedSkills: matched,
     unmatchedSkills: JSON.parse(resume.unmatched_skills || "[]"),
+    scopedToTargets: !!scopeToTargets, // false = fit/results searched every role, not just targets
     fit: fit
       ? {
           roleId: fit.roleId,
@@ -309,6 +318,11 @@ app.post("/resume", upload.single("resume"), async (req, res) => {
     : profile
       ? profile.targetRoles.map((r) => r.role_id)
       : [];
+  // "Also check roles outside my targets" checkbox — off by default, since
+  // a PM-targeting profile has no reason to pay for (or see) a SWE check,
+  // and vice versa. With no targets at all this has no effect either way.
+  const broadenFit = ["true", "1", "on"].includes(String(req.body.broadenFit || "").toLowerCase());
+  const scopeToTargets = targetRoleIds.length > 0 && !broadenFit;
 
   const parser = new PDFParse({ data: req.file.buffer });
   let text;
@@ -335,11 +349,14 @@ app.post("/resume", upload.single("resume"), async (req, res) => {
   }
 
   // Roles scored by a fixed qualification checklist instead of posting-derived
-  // skills (lib/qualifications.js) need their own resume-text assessment.
-  // Best-effort: a failure here shouldn't fail the whole upload, same as the
-  // fit explanation below — that role just won't be scorable this time.
+  // skills (lib/qualifications.js) need their own resume-text assessment —
+  // one Claude call each. Scoped to targets same as everything else below,
+  // so an untargeted qualifications-based role (e.g. PM for a SWE-only
+  // profile) is never even assessed, let alone shown or charged for.
+  const targetRoleIdSet = new Set(targetRoleIds);
   const qualRoles = allRoles()
     .filter((r) => r.postings > 0)
+    .filter((r) => !scopeToTargets || targetRoleIdSet.has(r.role_id))
     .map((r) => ({ role: r, quals: qualificationsForRole(r.title) }))
     .filter((x) => x.quals);
   const qualificationsByRole = {};
@@ -379,7 +396,7 @@ app.post("/resume", upload.single("resume"), async (req, res) => {
   })();
 
   // Deterministic scoring first; Claude only explains the numbers.
-  const { fit, scoredAll } = scoreSkillSet(matchedIds, targetRoleIds, qualificationsByRole);
+  const { fit, scoredAll } = scoreSkillSet(matchedIds, targetRoleIds, qualificationsByRole, scopeToTargets);
   let reasoning = null;
   if (fit) {
     try {
@@ -401,12 +418,16 @@ app.post("/resume", upload.single("resume"), async (req, res) => {
   }
 
   const resume = db.prepare("SELECT * FROM resumes WHERE resume_id = ?").get(resumeId);
-  res.json(resumeResponse(resume, targetRoleIds));
+  res.json(resumeResponse(resume, targetRoleIds, scopeToTargets));
 });
 
 // GET /resume/:resumeId — re-score a stored resume against current postings.
 // No Claude call: skills and the fit explanation are reused from upload time.
-// Optional ?roleIds=1,2 overrides the target roles.
+// Optional ?roleIds=1,2 overrides the target roles; ?broaden=1 searches every
+// role instead of just the targets (same opt-in as the upload form). Note
+// this can only reveal qualifications-based roles that were actually
+// assessed at upload time — broadening here can't retroactively call Claude
+// for a role that wasn't targeted back then.
 app.get("/resume/:resumeId", (req, res) => {
   const resumeId = parseInt(req.params.resumeId, 10);
   if (isNaN(resumeId)) return res.status(400).json({ error: "resumeId must be a number" });
@@ -420,7 +441,9 @@ app.get("/resume/:resumeId", (req, res) => {
     const profile = getProfile(resume.profile_id);
     targetRoleIds = profile ? profile.targetRoles.map((r) => r.role_id) : [];
   }
-  res.json(resumeResponse(resume, targetRoleIds));
+  const broaden = ["true", "1", "on"].includes(String(req.query.broaden || "").toLowerCase());
+  const scopeToTargets = targetRoleIds.length > 0 && !broaden;
+  res.json(resumeResponse(resume, targetRoleIds, scopeToTargets));
 });
 
 app.listen(PORT, () => {

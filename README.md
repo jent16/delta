@@ -269,7 +269,19 @@ never touches them, so they survive a rebuild.
 - [x] Per-posting storage, tracks, and per-company gaps instead of weights
 - [x] Resume upload → skill extraction → fit verdict
 - [x] Profiles with target roles
-- [ ] Ingest Product Manager Intern postings and validate the PM track list
+- [x] Ingest Product Manager Intern postings — 25 real postings, tracks and
+      industries classified correctly, but every single one extracted zero
+      skills (required or preferred). Confirmed root cause: Adzuna's ~500
+      char snippet cap is consistently eaten by generic "our values/mission"
+      company-intro boilerplate for PM listings before reaching an actual
+      requirements section, unlike most SWE postings. The role exists and
+      is browsable, but currently has no derivable minimum/preferred skills
+      at all — a resume scores 0% against it either way, for lack of
+      anything to compare against
+- [ ] Fix Product Manager Intern's skill data — likely needs fetching each
+      posting's full text via its own URL instead of relying on Adzuna's
+      snippet, at least for this role; a real scoping decision, not
+      started
 - [ ] Expand to more courses (target: full CS core + electives)
 - [ ] Automate skill extraction from course descriptions
 - [ ] Study plan: for a role's missing skills, suggest which courses close the largest gap

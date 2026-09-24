@@ -25,3 +25,19 @@ Linear Algebra,concept
 Calculus,concept
 Numerical Analysis,concept
 Algorithm Design,concept
+Backend Development,concept
+Docker,tool
+Kubernetes,tool
+C#,language
+Cloud Security,concept
+System Design,concept
+Rust,language
+TypeScript,language
+gRPC-Web,tool
+Nest.js,framework
+Protocol Buffers,tool
+gRPC,tool
+PyTorch,framework
+TensorRT,tool
+CUDA,tool
+RabbitMQ,tool

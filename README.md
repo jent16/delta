@@ -245,6 +245,36 @@ Filters, all optional and composable:
 yet filterable — a likely next addition, not built because it wasn't the
 immediate priority.
 
+## Notion tracker
+
+Find openings can push a listing into a Notion database as a new row, so
+what you've applied to lives where you already keep it. Each profile has
+its own database (a SWE profile and a PM profile can point at different
+trackers, so sectors don't mix).
+
+Setup: create an internal integration at notion.so/my-integrations, put its
+token in `.env` as `NOTION_TOKEN`, share each tracker database with the
+integration (database ••• menu → Connections), then pick a profile and paste
+that database's URL into "Notion tracker for this profile". Every listing
+then gets an **Add to tracker** button.
+
+It's deliberately one-way: the app writes, you own the status (applied / in
+progress / closed) in Notion, and nothing is ever read back or deleted —
+which is also why closed postings need no cleanup logic. Consequently Find
+openings can't hide roles you've already applied to; it only marks the ones
+you added *here*.
+
+Each push reads the database's real property names and fills only the ones
+it recognizes (company, term, posted date, city, link, degree, sponsorship,
+category, plus the title), matched case-insensitively — see `FIELD_NAMES`
+in `lib/notion.js` to add aliases. Anything else, including a Status
+property, is left for you. `tracked_listings` remembers what was pushed per
+profile (by Simplify's stable listing id), so a repeat click never
+duplicates a row, and a row you delete in Notion stays deleted.
+
+`node server.js --mock` points Notion at `scripts/mock-api.js` too, so the
+whole flow can be exercised without a token.
+
 ## API
 
 | Route | What it does |
@@ -257,6 +287,7 @@ immediate priority.
 | `GET /resume/:id` | re-score a stored resume against current postings. No Claude call. Optional `?roleIds=`, `?broaden=1` |
 | `GET /readiness/:studentId` | course-derived skills vs every role |
 | `GET /program-readiness/:programId` | a whole curriculum vs every role |
+| `POST /tracker` | add a listing (`profileId`, `listingId`) to that profile's Notion database. `GET /tracker/:profileId` lists ids already added |
 | `GET /openings` | curated Simplify listings — see Find openings above for all filter params |
 
 Resume skills are matched against the existing vocabulary only. A skill
@@ -364,6 +395,7 @@ never touches them, so they survive a rebuild.
 - [x] Find-openings region filter: drill down to state/province, then city,
       instead of one flat US/Canada/International bucket
 - [x] Find-openings degree-level filter (Bachelor's/Master's/PhD)
+- [x] Notion tracker: per-profile database, one-way "Add to tracker" from Find openings
 - [ ] Find-openings sponsorship filter — the data's already there
       (shown as a badge), just not filterable yet
 - [x] Scope resume scoring to a profile's targets by default (fit,

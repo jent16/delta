@@ -14,6 +14,8 @@ const MOCK = process.argv.includes("--mock");
 if (MOCK) {
   process.env.ANTHROPIC_BASE_URL = `http://localhost:${process.env.MOCK_PORT || 4010}`;
   process.env.ANTHROPIC_API_KEY = "mock-key-not-used";
+  process.env.NOTION_BASE_URL = `http://localhost:${process.env.MOCK_PORT || 4010}`;
+  process.env.NOTION_TOKEN = "mock-token-not-used";
 }
 
 const express = require("express");
@@ -23,7 +25,8 @@ const { PDFParse } = require("pdf-parse");
 const { extractResumeSkills, assessQualifications, explainFit } = require("./lib/extract-skills");
 const { roleRequirements, scoreRole, scoreQualificationRole } = require("./lib/requirements");
 const { qualificationsForRole } = require("./lib/qualifications");
-const { findOpenings } = require("./lib/openings");
+const { findOpenings, findListingById } = require("./lib/openings");
+const { parseDatabaseId, addListing } = require("./lib/notion");
 
 const app = express();
 const db = new Database("delta.db");
@@ -93,7 +96,7 @@ function rolesById(ids) {
 
 function getProfile(profileId) {
   const profile = db
-    .prepare("SELECT profile_id, name, created_at FROM profiles WHERE profile_id = ?")
+    .prepare("SELECT profile_id, name, notion_database_id, created_at FROM profiles WHERE profile_id = ?")
     .get(profileId);
   if (!profile) return null;
   profile.targetRoles = db
@@ -194,6 +197,58 @@ app.get("/openings", async (req, res) => {
   }
 });
 
+// ---------- Notion tracker ----------
+
+// POST /tracker { profileId, listingId } — add one Find Openings listing as a
+// row in the profile's Notion database. One-way: status stays yours to set.
+const trackerInFlight = new Set(); // guards a double-click during the ~1s Notion push
+app.post("/tracker", async (req, res) => {
+  const profileId = parseInt(req.body?.profileId, 10);
+  const listingId = String(req.body?.listingId || "");
+  if (isNaN(profileId) || !listingId) {
+    return res.status(400).json({ error: "profileId and listingId are required" });
+  }
+  const profile = getProfile(profileId);
+  if (!profile) return res.status(404).json({ error: "profile not found" });
+  if (!profile.notion_database_id) {
+    return res.status(400).json({ error: `${profile.name} has no Notion database connected yet` });
+  }
+
+  const already = db
+    .prepare("SELECT 1 FROM tracked_listings WHERE profile_id = ? AND listing_id = ?")
+    .get(profileId, listingId);
+  if (already) return res.json({ status: "already-tracked" });
+
+  const flightKey = `${profileId}:${listingId}`;
+  if (trackerInFlight.has(flightKey)) return res.json({ status: "already-tracked" });
+  trackerInFlight.add(flightKey);
+
+  try {
+    const listing = await findListingById(listingId);
+    if (!listing) return res.status(404).json({ error: "listing not found — it may have been removed from Simplify" });
+
+    const { pageId, filled, skipped } = await addListing(profile.notion_database_id, listing);
+    db.prepare(
+      "INSERT INTO tracked_listings (profile_id, listing_id, notion_page_id, tracked_at) VALUES (?, ?, ?, ?)"
+    ).run(profileId, listingId, pageId, new Date().toISOString());
+    res.status(201).json({ status: "added", filled, skipped });
+  } catch (err) {
+    console.error("notion push failed:", err);
+    res.status(502).json({ error: err.message });
+  } finally {
+    trackerInFlight.delete(flightKey);
+  }
+});
+
+// GET /tracker/:profileId — listing ids already pushed, so the UI can show
+// "Tracked" instead of offering the button again
+app.get("/tracker/:profileId", (req, res) => {
+  const profileId = parseInt(req.params.profileId, 10);
+  if (isNaN(profileId)) return res.status(400).json({ error: "profileId must be a number" });
+  const ids = db.prepare("SELECT listing_id FROM tracked_listings WHERE profile_id = ?").all(profileId);
+  res.json({ listingIds: ids.map((r) => r.listing_id) });
+});
+
 // ---------- course-based readiness (student / program) ----------
 
 // GET /readiness/:studentId — course-derived skills vs every role
@@ -253,9 +308,20 @@ app.put("/profiles/:profileId", (req, res) => {
   const name = req.body?.name !== undefined ? String(req.body.name).trim() : null;
   const roleIds = Array.isArray(req.body?.roleIds) ? req.body.roleIds.map(Number) : null;
   if (roleIds && roleIds.some(isNaN)) return res.status(400).json({ error: "roleIds must be numbers" });
+  let notionDatabaseId;
+  if (req.body?.notionDatabaseId !== undefined) {
+    const raw = String(req.body.notionDatabaseId).trim();
+    notionDatabaseId = raw ? parseDatabaseId(raw) : null;
+    if (raw && !notionDatabaseId) {
+      return res.status(400).json({ error: "couldn't find a Notion database id in that — paste the database's URL or id" });
+    }
+  }
 
   db.transaction(() => {
     if (name) db.prepare("UPDATE profiles SET name = ? WHERE profile_id = ?").run(name, profileId);
+    if (notionDatabaseId !== undefined) {
+      db.prepare("UPDATE profiles SET notion_database_id = ? WHERE profile_id = ?").run(notionDatabaseId, profileId);
+    }
     if (roleIds) {
       db.prepare("DELETE FROM profile_roles WHERE profile_id = ?").run(profileId);
       const ins = db.prepare("INSERT OR IGNORE INTO profile_roles (profile_id, role_id) VALUES (?, ?)");

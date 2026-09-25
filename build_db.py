@@ -29,6 +29,12 @@ def load_csv(path):
         return list(csv.DictReader(f))
 
 
+def add_column_if_missing(cur, table, column, decl):
+    cols = [r[1] for r in cur.execute(f"PRAGMA table_info({table})")]
+    if column not in cols:
+        cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+
+
 def main():
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA foreign_keys = ON")
@@ -36,6 +42,11 @@ def main():
 
     with open("schema.sql") as f:
         cur.executescript(f.read())
+
+    # CREATE TABLE IF NOT EXISTS won't add a column to a table that already
+    # exists, so additive columns get an explicit, data-preserving ALTER —
+    # no delta.db reset needed for these.
+    add_column_if_missing(cur, "profiles", "notion_database_id", "TEXT")
 
     # --- skills ---
     for row in load_csv(f"{DATA_DIR}/skills.csv"):

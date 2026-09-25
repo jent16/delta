@@ -86,7 +86,18 @@ CREATE TABLE IF NOT EXISTS posting_skills (
 CREATE TABLE IF NOT EXISTS profiles (
     profile_id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
+    notion_database_id TEXT,    -- this profile's Notion tracker database, if connected
     created_at TEXT NOT NULL
+);
+
+-- listings already pushed to a profile's Notion tracker, so a click never
+-- adds the same one twice (and a row you delete in Notion stays deleted)
+CREATE TABLE IF NOT EXISTS tracked_listings (
+    profile_id INTEGER NOT NULL REFERENCES profiles(profile_id),
+    listing_id TEXT NOT NULL,   -- Simplify's stable listing id
+    notion_page_id TEXT,
+    tracked_at TEXT NOT NULL,
+    PRIMARY KEY (profile_id, listing_id)
 );
 
 CREATE TABLE IF NOT EXISTS profile_roles (

@@ -134,6 +134,12 @@
       <div class="checks" id="broadenRow" style="margin-top: 0.5rem; grid-template-columns: 1fr;">
         <label><input type="checkbox" id="broadenFit" /> Also check roles outside my targets</label>
       </div>
+      <div id="notionRow" class="hidden" style="margin-top: 0.75rem;">
+        <label for="notionDb">Notion tracker for this profile (database URL)</label>
+        <input type="text" id="notionDb" placeholder="paste the tracker database's URL" />
+        <button type="button" class="secondary" id="saveNotionBtn" style="margin-top: 0.5rem;">Save Notion database</button>
+        <div class="muted" id="notionNote" style="margin-top: 0.35rem;"></div>
+      </div>
     </div>
 
     <div class="row">
@@ -276,6 +282,7 @@
     renderRoleChecks();
     renderExploreSelect();
     renderTargets();
+    loadTracked();
   }
 
   function renderProfileSelect() {
@@ -319,12 +326,52 @@
       return;
     }
     $("targetsRow").classList.remove("hidden");
+    $("notionRow").classList.toggle("hidden", !p);
+    if (p) {
+      $("notionDb").value = p.notion_database_id || "";
+      $("notionNote").textContent = p.notion_database_id
+        ? "Connected — \"Add to tracker\" on Find openings adds rows here."
+        : "Not connected yet — Find openings can't add rows until you save one.";
+    }
     if (!p) { box.appendChild(chip("Every role with postings", "count")); return; }
     if (!p.targetRoles.length) box.appendChild(chip("No targets set — scoring every role", "count"));
     for (const r of p.targetRoles) box.appendChild(chip(roleLabel(r)));
   }
 
-  $("profile").addEventListener("change", onProfileChange);
+  // listing ids already pushed for the selected profile (so the button reads
+  // "Tracked" instead of offering a second add)
+  let trackedIds = new Set();
+  async function loadTracked() {
+    const p = currentProfile();
+    trackedIds = new Set();
+    if (p) {
+      try { trackedIds = new Set((await getJSON(`/tracker/${p.profile_id}`)).listingIds); } catch (_) {}
+    }
+    if (typeof searchOpenings === "function") searchOpenings();
+  }
+
+  $("profile").addEventListener("change", () => { onProfileChange(); loadTracked(); });
+
+  $("saveNotionBtn").addEventListener("click", async () => {
+    const p = currentProfile();
+    if (!p) return;
+    $("saveNotionBtn").disabled = true;
+    try {
+      const { profile } = await getJSON(`/profiles/${p.profile_id}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ notionDatabaseId: $("notionDb").value }),
+      });
+      const i = profiles.findIndex((x) => x.profile_id === profile.profile_id);
+      if (i >= 0) profiles[i] = profile;
+      renderTargets();
+      if (typeof searchOpenings === "function") searchOpenings();
+    } catch (err) {
+      $("notionNote").textContent = err.message;
+    } finally {
+      $("saveNotionBtn").disabled = false;
+    }
+  });
 
   $("saveProfileBtn").addEventListener("click", async () => {
     const name = $("profileName").value.trim();
@@ -567,6 +614,38 @@
       chips.appendChild(chip(o.sponsorship, cls));
     }
     node.appendChild(chips);
+
+    const p = currentProfile();
+    const bar = el("div", { class: "muted", style: "margin-top:0.4rem" });
+    if (!p) {
+      bar.textContent = "Pick a profile above to track this in Notion.";
+    } else if (!p.notion_database_id) {
+      bar.textContent = `Connect a Notion database for ${p.name} above to track this.`;
+    } else if (trackedIds.has(o.id)) {
+      bar.appendChild(chip(`Tracked in ${p.name}'s Notion`, "have"));
+    } else {
+      const btn = el("button", { type: "button", class: "secondary", style: "width:auto;padding:0.3rem 0.7rem;font-size:0.8rem" }, "Add to tracker");
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        btn.textContent = "Adding…";
+        try {
+          await getJSON("/tracker", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ profileId: p.profile_id, listingId: o.id }),
+          });
+          trackedIds.add(o.id);
+          bar.innerHTML = "";
+          bar.appendChild(chip(`Tracked in ${p.name}'s Notion`, "have"));
+        } catch (err) {
+          btn.disabled = false;
+          btn.textContent = "Add to tracker";
+          bar.appendChild(el("div", { class: "status error", text: err.message }));
+        }
+      });
+      bar.appendChild(btn);
+    }
+    node.appendChild(bar);
     return node;
   }
 

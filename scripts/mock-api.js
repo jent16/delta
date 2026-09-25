@@ -85,6 +85,16 @@ http.createServer((req, res) => {
       const body = JSON.parse(raw);
       process.stderr.write(`[mock] anthropic model=${body.model} tool=${body.tool_choice ? body.tool_choice.name : "-"} max_tokens=${body.max_tokens}\n`);
       res.end(JSON.stringify(anthropicReply(body)));
+    } else if (req.url.startsWith("/v1/databases/")) {
+      process.stderr.write(`[mock] notion GET ${req.url}\n`);
+      res.end(JSON.stringify({ properties: {
+        Name: { type: "title" }, Company: { type: "rich_text" }, Term: { type: "multi_select" },
+        Posted: { type: "date" }, City: { type: "rich_text" }, Link: { type: "url" },
+        Status: { type: "status" }, Notes: { type: "rich_text" },
+      } }));
+    } else if (req.url === "/v1/pages" && req.method === "POST") {
+      process.stderr.write(`[mock] notion POST /v1/pages ${JSON.stringify(JSON.parse(raw).properties)}\n`);
+      res.end(JSON.stringify({ id: "page-" + Date.now() }));
     } else if (req.url.includes("/v1/api/jobs/")) {
       process.stderr.write(`[mock] adzuna ${req.url.split("?")[0]}\n`);
       res.end(JSON.stringify(adzunaReply()));

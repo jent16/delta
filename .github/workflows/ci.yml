@@ -13,7 +13,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - uses: actions/setup-python@v5
@@ -26,4 +26,6 @@ jobs:
       # against scripts/mock-api.js (a stand-in for Claude and Notion), and
       # the Simplify listings are stubbed, so nothing here costs money or
       # touches the network.
+      - run: npm run typecheck
+
       - run: npm test

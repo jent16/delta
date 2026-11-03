@@ -5,6 +5,32 @@ individual posting asks for, rolls that up into what a role actually
 requires, and scores your resume against it — per role, per
 specialization, and per company.
 
+## Application tracker (new core)
+
+Delta is growing from a skill-gap analyzer into an internship application
+tracker. The tracker lives in `src/` (TypeScript), keeps **your applications
+in its own database** (`var/tracker.db`), and doesn't depend on the older
+modules below. Start with [`docs/architecture.md`](docs/architecture.md) (the
+layers and the one rule that holds them together) and
+[`docs/decisions.md`](docs/decisions.md) (why each choice was made).
+
+```bash
+npm run tracker      # http://localhost:3001
+```
+
+| Route | What it does |
+|---|---|
+| `POST /api/applications` | add one (`company` and `roleTitle` required) |
+| `GET /api/applications` | list; filters `status`, `function`, `sector`, `q`, `includeArchived` |
+| `GET /api/applications/:id` | one application, its dated status history, and the legal next statuses |
+| `PATCH /api/applications/:id` | edit fields |
+| `POST /api/applications/:id/status` | move through the pipeline (`{status, on?, note?}`) |
+| `POST /api/applications/:id/status/undo` | undo the last status change |
+| `DELETE /api/applications/:id` | archive (recoverable) |
+
+Roadmap: saved-filter lists → import (Notion first, then CSV/XLSX) → plain UI
+→ contacts → export/backup. Everything below this section is the original Delta.
+
 ## Why
 
 Course calendars and generic resume screeners don't tell you which of
@@ -298,7 +324,8 @@ employers actually ask for.
 ## Tests
 
 ```bash
-npm test     # 45 tests, ~0.5s, no API keys and no network
+npm test     # legacy + tracker tests, no API keys and no network
+npm run typecheck
 ```
 
 Node's built-in test runner (no extra dependencies); CI runs the same

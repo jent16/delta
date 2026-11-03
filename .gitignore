@@ -4,3 +4,6 @@ delta.db
 .claude/settings.local.json
 __pycache__/
 *.pyc
+
+# the tracker's user data (the only copy of your applications) — never commit it
+var/

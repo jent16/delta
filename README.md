@@ -295,6 +295,35 @@ no posting has ever asked for is reported under `unmatchedSkills` rather
 than added to the vocabulary, so the skill list stays anchored to what
 employers actually ask for.
 
+## Tests
+
+```bash
+npm test     # 45 tests, ~0.5s, no API keys and no network
+```
+
+Node's built-in test runner (no extra dependencies); CI runs the same
+command on every push (`.github/workflows/ci.yml`).
+
+- **Unit** — location/term/degree parsing and the Find Openings filter
+  cascade (against stubbed Simplify data), Notion property mapping, and the
+  closed lists (including the "last item is the catch-all" convention
+  `lib/extract-skills.js` relies on).
+- **Scoring** — requirement tiers pinned exactly on the 50% / 20%
+  boundaries, `fitScore` ignoring postings with no required skills, and the
+  qualification checklist. The fixture database is built by the real
+  `build_db.py`, so the loader is exercised too.
+- **Parity** — `requirements.js` and `requirements.py` implement one rule;
+  a test fails if they ever disagree.
+- **Integration** — the real `server.js` runs against `scripts/mock-api.js`,
+  and the tests assert on *which Claude calls were made*, not just what came
+  back: a scoped profile must never trigger the PM assessment, and
+  `GET /resume/:id` must make zero calls. `mock-api.js` serves `GET
+  /__calls` for this.
+
+Not covered: the frontend (`public/index.html`), the live Adzuna/Simplify/
+Notion APIs, and anything that judges whether Claude's extraction is
+*correct* — the tests check that the plumbing handles whatever comes back.
+
 ## Developing without spending credits
 
 `scripts/mock-api.js` stands in for both the Anthropic and Adzuna APIs

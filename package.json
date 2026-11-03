@@ -4,7 +4,7 @@
   "description": "A skill-gap analyzer built on real job postings: stores what each posting asks for, rolls it up per role and specialization, and scores a resume against it.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test \"test/*.test.js\"",
     "start": "node server.js",
     "ingest": "node scripts/ingest-role.js",
     "mock": "node scripts/mock-api.js",

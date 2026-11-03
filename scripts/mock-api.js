@@ -74,13 +74,17 @@ function adzunaReply() {
   };
 }
 
-const calls = [];
+const MOCK_PORT = Number(process.env.MOCK_PORT) || 4010;
+const calls = []; // every request seen; GET /__calls returns it so tests can assert on spend
 http.createServer((req, res) => {
   let raw = "";
   req.on("data", (c) => (raw += c));
   req.on("end", () => {
-    calls.push({ method: req.method, url: req.url });
     res.setHeader("content-type", "application/json");
+    if (req.url === "/__calls") return res.end(JSON.stringify(calls));
+    let tool = null;
+    try { tool = JSON.parse(raw).tool_choice?.name || null; } catch (_) {}
+    calls.push({ method: req.method, url: req.url, tool });
     if (req.url.startsWith("/v1/messages")) {
       const body = JSON.parse(raw);
       process.stderr.write(`[mock] anthropic model=${body.model} tool=${body.tool_choice ? body.tool_choice.name : "-"} max_tokens=${body.max_tokens}\n`);
@@ -103,4 +107,4 @@ http.createServer((req, res) => {
       res.end("{}");
     }
   });
-}).listen(4010, () => process.stderr.write("[mock] listening on 4010\n"));
+}).listen(MOCK_PORT, () => process.stderr.write(`[mock] listening on ${MOCK_PORT}\n`));

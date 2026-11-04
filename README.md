@@ -55,8 +55,40 @@ elsewhere.
 | `GET /api/lists/:id/applications` | run the list; narrow it with `status`, `function`, `sector`, `q` |
 | `PATCH /api/lists/:id`, `DELETE /api/lists/:id` | rename / re-filter / delete (applications are never touched) |
 
-Roadmap: import from your Notion trackers (SWE, PM and Fintech share one column
-layout, then CSV/XLSX) → plain UI with company search → contacts and alumni
+### Importing from Notion
+
+One-time import of an existing tracker. It **previews first** and writes
+nothing until you add `--commit`:
+
+```bash
+npm run import:notion -- <database link or id> --function SWE            # preview
+npm run import:notion -- <database link or id> --function SWE --commit   # import
+```
+
+`--function` says which kind of role the tracker holds (`SWE`, `PM`, `Data`,
+`Quant`, `Design`, `Other`); `--sector` optionally sets one sector for every
+row. Needs `NOTION_TOKEN` in `.env`, and the database shared with your
+integration (database `···` menu → Connections).
+
+It expects the tracker layout the SWE database uses: `Company` (title), `Role/Program`,
+`Location`, `Link`, `Opens`, `Applied`, `Notes` and a `Status` select. Status
+words map as **Bookmarked → Saved, In process → Drafting, Applied → Applied,
+x → Rejected**. Column names are matched ignoring case, so the PM and Fintech
+databases work if they follow the same layout.
+
+- **Safe to repeat.** A ledger remembers which row became which application.
+  Re-running imports only new rows, and never overwrites what you changed in
+  Delta or brings back something you archived.
+- **Problems are reported, not guessed**: a row with no company or an unknown
+  status is listed for you to fix in Notion (then re-run); duplicates are listed
+  too, the older row wins.
+- **Guesses are labelled**: a rejected row's date is the row's last edit; a
+  sector is guessed only for well-known firms (Jane Street, Stripe, ...); a term
+  like "(Summer 2027)" in a title fills the Term field.
+- The same thing is available over HTTP: `POST /api/import/notion/preview` and
+  `/commit` with `{database, roleFunction, sector?}`.
+
+Roadmap: CSV/XLSX import → plain UI with company search → contacts and alumni
 helper → export/backup. Everything below this section is the original Delta.
 
 ## Why

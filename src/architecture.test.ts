@@ -6,8 +6,9 @@
 //   db            -> db only
 //   repositories  -> domain, db                        (SQL; implements domain ports)
 //   services      -> domain                            (use-cases; talk to storage via a PORT, never SQL)
+//   importers     -> domain                            (adapters to outside systems, e.g. Notion)
 //   api           -> services, domain                  (HTTP translation)
-//   main.ts, testing/  -> anything                     (composition root and test wiring)
+//   files at the top of src/, and testing/  -> anything (entry points, composition, test wiring)
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -20,6 +21,7 @@ const ALLOWED: Record<string, string[]> = {
   domain: ["domain"],
   db: ["db"],
   repositories: ["domain", "db", "repositories"],
+  importers: ["domain", "importers"],
   services: ["domain", "services"],
   api: ["services", "domain", "api"],
 };
@@ -41,7 +43,12 @@ test("every layer imports only from the layers it is allowed to", () => {
     const rel = relative(SRC, file);
     const layer = rel.split(sep)[0]!;
     const allowed = ALLOWED[layer];
-    if (!allowed) continue; // main.ts, testing/, and test files at the root are free
+    if (!rel.includes(sep) || layer === "testing") continue; // entry points at the top of src/, and test wiring, are free
+    if (!allowed) {
+      // a new directory must be given a place in the rules, not silently exempted
+      violations.push(`${rel}: "${layer}/" is not a known layer — add it to ALLOWED`);
+      continue;
+    }
     if (rel.endsWith(".test.ts") && layer === "services") continue; // service tests use the harness to wire a real DB
     if (rel.endsWith(".test.ts") && layer === "api") continue;
     if (rel.endsWith(".test.ts") && layer === "db") continue;

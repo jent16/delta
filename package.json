@@ -10,7 +10,8 @@
     "mock": "node scripts/mock-api.js",
     "dev": "node server.js --mock",
     "typecheck": "tsc --noEmit",
-    "tracker": "node src/main.ts"
+    "tracker": "node src/main.ts",
+    "import:notion": "node --env-file-if-exists=.env src/import-notion.ts"
   },
   "repository": {
     "type": "git",

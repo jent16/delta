@@ -47,3 +47,11 @@ export class DuplicateError extends Error {
     this.existingId = existingId;
   }
 }
+
+/** An outside system (e.g. Notion) refused or failed. The message is safe to show the user. */
+export class SourceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SourceError";
+  }
+}

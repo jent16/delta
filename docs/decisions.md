@@ -133,3 +133,47 @@ and checks nothing was lost. **Lesson:** a status list in a CHECK is safe but
 expensive to change; the alternative (validate only in the domain) would have
 made this a one-line change at the price of the database no longer guarding
 itself.
+
+## 17. The importer is an adapter plus pure mapping, and writes through the normal service
+Three separable jobs: an *adapter* (`importers/notion.ts`) that only fetches and
+flattens Notion pages into plain rows; *mapping* (`domain/import.ts`, pure) that
+decides what a row means; and an *import service* that decides what to do. Rows
+are written with the same `applications.add` / `changeStatus` calls the API
+uses, so an import can't create something a person couldn't (no second set of
+rules to drift). The Notion client is injected, so tests use canned responses
+and the real database but never the network. A CSV importer is a new adapter
+producing the same rows.
+*Alternative:* write straight to the database. Faster to build, but it would
+skip duplicate detection and status history, and need its own validation.
+
+## 18. Delta is the source of truth after import; the ledger enforces it
+`import_records` remembers which source row became which application. A row in
+the ledger is never read again, so edits made in Delta are not overwritten and
+an application you archived is not resurrected by re-running. The cost: fixing a
+typo in Notion *after* importing doesn't flow through. That is the point of the
+pivot, and the answer is to fix it in Delta.
+*Alternative:* two-way sync. Rejected: it needs conflict rules ("which edit
+wins?") that a single-user local tool shouldn't need.
+
+## 19. Preview, then commit — and both run the same plan
+Nothing is written until you say so. The preview and the commit execute one
+`plan()` function, so the preview cannot promise something the commit doesn't
+do (a test asserts the two summaries match). A row that fails at write time is
+reported and not recorded, so one bad row never aborts the rest and a re-run
+retries exactly the rows that failed.
+
+## 20. Lossy source, honest guesses
+Notion records the current status, not when it changed. A rejected row is
+imported as *applied on the Applied date, then rejected*, dated with the row's
+last edit, and the preview says the date is approximate. Two other guesses are
+labelled as guesses too: a sector inferred from a short table of well-known
+employers (`domain/company-hints.ts`), and a term lifted from "(Summer 2027)" in
+a title. Anything with no column of its own (Opens date, a non-URL link) goes
+into the notes so nothing is silently lost. Rows with an unknown status word
+are refused rather than guessed.
+
+## 21. Duplicates inside the source: the older row wins
+Two Notion rows with the same company, role and term are one application in
+Delta. The older row is imported and the newer is reported as a duplicate, never
+silently dropped. If it was really a re-application, give it a term (or a
+different role) in Notion and re-run.

@@ -175,7 +175,7 @@ function complete(parsed: Partial<Record<keyof ApplicationFields, string | null>
 export function parseNewApplication(rawInput: unknown, today: string): NewApplication {
   const issues: ValidationIssue[] = [];
   const raw = asObject(rawInput, issues);
-  const parsed = parseFields(raw, issues, ["status"]);
+  const parsed = parseFields(raw, issues, ["status", "statusOn"]);
   for (const key of FIELD_NAMES) {
     const spec = SPECS[key];
     if (spec.kind === "text" && spec.required && !(key in raw)) issues.push({ field: key, message: "is required" });
@@ -185,12 +185,19 @@ export function parseNewApplication(rawInput: unknown, today: string): NewApplic
     if (isStatus(raw.status)) status = raw.status;
     else issues.push({ field: "status", message: `must be one of: ${STATUSES.join(", ")}` });
   }
+  // optional: the date the starting status began (an importer backdates "saved on the day I bookmarked it")
+  let givenStatusOn: string | undefined;
+  if ("statusOn" in raw && raw.statusOn !== undefined && raw.statusOn !== null) {
+    if (typeof raw.statusOn === "string" && isIsoDate(raw.statusOn)) givenStatusOn = raw.statusOn;
+    else issues.push({ field: "statusOn", message: "must be a real date as YYYY-MM-DD" });
+  }
   if (issues.length) throw new ValidationError(issues);
 
   const fields = complete(parsed);
   const resolved = status ?? (fields.appliedOn ? "applied" : "saved");
   // saved/drafting have no meaningful date of their own; everything else happened on appliedOn if given
-  return { fields, status: resolved, statusOn: resolved === "saved" || resolved === "drafting" ? today : (fields.appliedOn ?? today) };
+  const defaultOn = resolved === "saved" || resolved === "drafting" ? today : (fields.appliedOn ?? today);
+  return { fields, status: resolved, statusOn: givenStatusOn ?? defaultOn };
 }
 
 /** An edit: any subset of fields. Status is changed through its own operation. */

@@ -5,13 +5,15 @@
 
 import express from "express";
 import type { ErrorRequestHandler, Request } from "express";
-import { DuplicateError, InvalidTransitionError, NotFoundError, ValidationError } from "../domain/errors.ts";
+import { DuplicateError, InvalidTransitionError, NotFoundError, SourceError, ValidationError } from "../domain/errors.ts";
 import type { ApplicationService } from "../services/applications.ts";
+import type { ImportService } from "../services/import.ts";
 import type { ListService } from "../services/lists.ts";
 
 export interface AppDeps {
   applications: ApplicationService;
   lists: ListService;
+  imports: ImportService;
   /**
    * The one place "who is making this request" is decided. Today there is a
    * single local user. When login exists, this reads a session instead —
@@ -34,13 +36,14 @@ const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     return void res.status(409).json({ error: "invalid_transition", message: err.message, from: err.from, to: err.to, allowed: err.allowed });
   }
   if (err instanceof DuplicateError) return void res.status(409).json({ error: "duplicate", message: err.message, existingId: err.existingId });
+  if (err instanceof SourceError) return void res.status(502).json({ error: "source_error", message: err.message });
   if (err instanceof SyntaxError) return void res.status(400).json({ error: "validation", issues: [{ field: "(body)", message: "not valid JSON" }] });
   console.error(err); // an unexpected bug: log the detail, never leak it to the client
   res.status(500).json({ error: "internal" });
 };
 
 export function createApp(deps: AppDeps) {
-  const { applications, lists, currentUserId } = deps;
+  const { applications, lists, imports, currentUserId } = deps;
   const app = express();
   app.use(express.json());
 
@@ -101,6 +104,15 @@ export function createApp(deps: AppDeps) {
   app.delete("/api/lists/:id", (req, res) => {
     lists.remove(currentUserId(req), idParam(req));
     res.status(204).end();
+  });
+
+  // --- import from Notion: preview changes nothing, commit writes ---
+  app.post("/api/import/notion/preview", async (req, res) => {
+    res.json(await imports.preview(currentUserId(req), req.body));
+  });
+
+  app.post("/api/import/notion/commit", async (req, res) => {
+    res.json(await imports.commit(currentUserId(req), req.body));
   });
 
   app.use(errorHandler);

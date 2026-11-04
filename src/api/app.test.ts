@@ -93,3 +93,29 @@ test("lists over HTTP: starter lists, create, run with narrowing, rename, delete
   assert.equal((await api.call("DELETE", `/api/lists/${created.body.id}`)).status, 204);
   assert.equal((await api.call("GET", `/api/lists/${created.body.id}`)).status, 404);
 });
+
+test("import over HTTP: preview writes nothing, commit does, errors map to sensible statuses", async (t) => {
+  const { SourceError } = await import("../domain/errors.ts");
+  let fail = false;
+  const rows = [{ externalId: "r1", fields: { Company: "Stripe", "(title)": "Stripe", "Role/Program": "SWE", Status: "Applied", Applied: "2026-09-05" }, createdOn: "2026-09-01", editedOn: "2026-09-02" }];
+  const api = await startApi(1, { notion: () => ({ id: "notion:x", fetchRows: async () => { if (fail) throw new SourceError("Notion refused the request (404)"); return rows; } }) });
+  t.after(() => api.close());
+  const req = { database: "x", roleFunction: "SWE" };
+
+  const preview = await api.call("POST", "/api/import/notion/preview", req);
+  assert.equal(preview.status, 200);
+  assert.equal(preview.body.summary.create, 1);
+  assert.equal((await api.call("GET", "/api/applications")).body.applications.length, 0);
+
+  const commit = await api.call("POST", "/api/import/notion/commit", req);
+  assert.equal(commit.status, 200);
+  assert.equal(commit.body.items[0].applicationId, 1);
+  assert.equal((await api.call("GET", "/api/applications")).body.applications.length, 1);
+  assert.equal((await api.call("POST", "/api/import/notion/commit", req)).body.summary.alreadyImported, 1);
+
+  assert.equal((await api.call("POST", "/api/import/notion/preview", { database: "x" })).status, 400); // roleFunction missing
+  fail = true;
+  const refused = await api.call("POST", "/api/import/notion/preview", req);
+  assert.equal(refused.status, 502);
+  assert.equal(refused.body.error, "source_error");
+});

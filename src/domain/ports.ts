@@ -34,4 +34,11 @@ export interface ListRepository {
   remove(userId: number, id: number): boolean;
 }
 
+/** Remembers which source row became which application, so importing twice never duplicates. */
+export interface ImportLedger {
+  /** externalId -> application id, for everything already imported from this source. */
+  known(userId: number, source: string): Map<string, number>;
+  record(userId: number, source: string, externalId: string, applicationId: number, now: string): void;
+}
+
 export type { ApplicationFields, ListFilter };

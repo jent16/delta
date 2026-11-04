@@ -21,11 +21,16 @@ HTTP request
                  are legal, what valid input looks like. Pure functions and types.
                  No database, no Express, no file system.
 
+ importers/      adapters to outside systems (Notion today). They fetch and flatten
+                 rows into the domain's SourceRow and know nothing else.
+
  repositories/   the only place SQL exists. Implements the *port* declared in
                  domain/ports.ts, translating rows <-> domain objects.
  db/             opening the database and applying migrations.
- main.ts         the composition root: builds every object and hands each one
-                 what it needs. The only file that knows about all the layers.
+ compose.ts      the composition root: builds every object and hands each one
+                 what it needs. The only place that knows about all the layers.
+ main.ts, import-notion.ts
+                 entry points (web server, import command). They call compose.ts.
 ```
 
 ### The dependency rule
@@ -37,12 +42,14 @@ Source code may only depend **inward**:
 | `domain` | `domain` |
 | `db` | `db` |
 | `repositories` | `domain`, `db` |
+| `importers` | `domain` |
 | `services` | `domain` |
 | `api` | `services`, `domain` |
 
 `src/architecture.test.ts` enforces this by scanning every import. It is a test
 rather than a paragraph in a document because a document erodes the first time
-someone is in a hurry, and a red build does not.
+someone is in a hurry, and a red build does not. A new directory under `src/`
+that isn't in the rules fails the test too, so it can't be quietly exempt.
 
 ### Why bother
 
@@ -54,8 +61,9 @@ Concrete payoffs you can already see in this repo:
   (an interface owned by the domain). SQLite is one implementation; the storage
   depends on the domain, not the reverse.
 - **HTTP is replaceable.** Nothing below `api/` knows what a request is, so a
-  CSV importer (Step 3) calls the same service the web API does and gets the
-  same validation and duplicate handling for free.
+  Notion importer calls the same application service the web API does, so an
+  imported row gets the same validation, duplicate check and status history as
+  one you typed. A CSV importer later only needs a new adapter.
 - **One place per kind of change.** A column rename touches `repositories/` and
   a migration. A new status rule touches `domain/status.ts`. A new endpoint
   touches `api/` and, if it's a new use-case, one service function.

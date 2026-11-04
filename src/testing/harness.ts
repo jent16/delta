@@ -6,11 +6,14 @@ import { createApp } from "../api/app.ts";
 import { openDatabase } from "../db/connection.ts";
 import { migrate } from "../db/migrate.ts";
 import { createApplicationRepository } from "../repositories/applications.ts";
+import { createImportLedger } from "../repositories/import-ledger.ts";
 import { createListRepository } from "../repositories/lists.ts";
 import { createApplicationService } from "../services/applications.ts";
+import { createImportService } from "../services/import.ts";
+import type { SourceFactory } from "../services/import.ts";
 import { createListService } from "../services/lists.ts";
 
-export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0)) {
+export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0), sources?: SourceFactory) {
   let current = startAt;
   const clock = () => current;
   const db = openDatabase(":memory:");
@@ -18,10 +21,18 @@ export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0)) {
   const applicationRepo = createApplicationRepository(db);
   const service = createApplicationService({ repo: applicationRepo, clock });
   const lists = createListService({ lists: createListRepository(db), applications: applicationRepo, clock });
+  const imports = createImportService({
+    sources: sources ?? { notion: () => { throw new Error("no import source wired for this test"); } },
+    applications: service,
+    repo: applicationRepo,
+    ledger: createImportLedger(db),
+    clock,
+  });
   return {
     db,
     service,
     lists,
+    imports,
     clock,
     /** Moves the fake clock forward, so tests can create "history". */
     advance(days: number) {
@@ -30,9 +41,9 @@ export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0)) {
   };
 }
 
-export async function startApi(userId = 1) {
-  const t = makeTracker();
-  const app = createApp({ applications: t.service, lists: t.lists, currentUserId: () => userId });
+export async function startApi(userId = 1, sources?: SourceFactory) {
+  const t = makeTracker(undefined, sources);
+  const app = createApp({ applications: t.service, lists: t.lists, imports: t.imports, currentUserId: () => userId });
   const server = await new Promise<import("node:http").Server>((resolve) => {
     const s = app.listen(0, () => resolve(s));
   });

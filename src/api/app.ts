@@ -7,9 +7,11 @@ import express from "express";
 import type { ErrorRequestHandler, Request } from "express";
 import { DuplicateError, InvalidTransitionError, NotFoundError, ValidationError } from "../domain/errors.ts";
 import type { ApplicationService } from "../services/applications.ts";
+import type { ListService } from "../services/lists.ts";
 
 export interface AppDeps {
   applications: ApplicationService;
+  lists: ListService;
   /**
    * The one place "who is making this request" is decided. Today there is a
    * single local user. When login exists, this reads a session instead —
@@ -38,7 +40,7 @@ const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
 };
 
 export function createApp(deps: AppDeps) {
-  const { applications, currentUserId } = deps;
+  const { applications, lists, currentUserId } = deps;
   const app = express();
   app.use(express.json());
 
@@ -71,6 +73,33 @@ export function createApp(deps: AppDeps) {
   // "delete" archives — see the applications table for why
   app.delete("/api/applications/:id", (req, res) => {
     applications.archive(currentUserId(req), idParam(req));
+    res.status(204).end();
+  });
+
+  // --- saved lists (filters over the applications table) ---
+  app.get("/api/lists", (req, res) => {
+    res.json({ lists: lists.all(currentUserId(req)) });
+  });
+
+  app.post("/api/lists", (req, res) => {
+    res.status(201).json(lists.create(currentUserId(req), req.body));
+  });
+
+  app.get("/api/lists/:id", (req, res) => {
+    res.json(lists.get(currentUserId(req), idParam(req)));
+  });
+
+  app.get("/api/lists/:id/applications", (req, res) => {
+    res.json(lists.applications(currentUserId(req), idParam(req), req.query as Record<string, unknown>));
+  });
+
+  app.patch("/api/lists/:id", (req, res) => {
+    res.json(lists.edit(currentUserId(req), idParam(req), req.body));
+  });
+
+  // a list is only a view, so deleting one really deletes it — no application is touched
+  app.delete("/api/lists/:id", (req, res) => {
+    lists.remove(currentUserId(req), idParam(req));
     res.status(204).end();
   });
 

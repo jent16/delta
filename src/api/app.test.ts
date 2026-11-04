@@ -66,3 +66,30 @@ test("health check", async (t) => {
   t.after(() => api.close());
   assert.deepEqual((await api.call("GET", "/api/health")).body, { ok: true });
 });
+
+test("lists over HTTP: starter lists, create, run with narrowing, rename, delete", async (t) => {
+  const api = await startApi();
+  t.after(() => api.close());
+
+  const starter = await api.call("GET", "/api/lists");
+  assert.deepEqual(starter.body.lists.map((l: { name: string }) => l.name), ["SWE", "PM", "Fintech-adjacent"]);
+
+  await api.call("POST", "/api/applications", { company: "Jane Street", roleTitle: "SWE Intern", roleFunction: "SWE", sector: "Finance" });
+  await api.call("POST", "/api/applications", { company: "Figma", roleTitle: "SWE Intern", roleFunction: "SWE", sector: "Consumer Tech" });
+  const fintech = starter.body.lists[2];
+
+  const run = await api.call("GET", `/api/lists/${fintech.id}/applications?q=jane`);
+  assert.equal(run.status, 200);
+  assert.deepEqual(run.body.applications.map((a: { company: string }) => a.company), ["Jane Street"]);
+  assert.equal(run.body.list.count, 1);
+  assert.equal((await api.call("GET", `/api/lists/${fintech.id}/applications?function=PM`)).body.applications.length, 0);
+  assert.equal((await api.call("GET", `/api/lists/${fintech.id}/applications?status=bogus`)).status, 400);
+
+  const created = await api.call("POST", "/api/lists", { name: "Offers", filter: { statuses: ["offer"] } });
+  assert.equal(created.status, 201);
+  assert.equal((await api.call("POST", "/api/lists", { name: "offers" })).status, 409); // duplicate name
+  assert.equal((await api.call("POST", "/api/lists", { name: "Bad", filter: { sectors: ["Plumbing"] } })).status, 400);
+  assert.equal((await api.call("PATCH", `/api/lists/${created.body.id}`, { name: "Won" })).body.name, "Won");
+  assert.equal((await api.call("DELETE", `/api/lists/${created.body.id}`)).status, 204);
+  assert.equal((await api.call("GET", `/api/lists/${created.body.id}`)).status, 404);
+});

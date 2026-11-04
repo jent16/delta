@@ -95,6 +95,28 @@ const PATCH_COLUMNS: Record<keyof ApplicationPatch, string> = {
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 const MAX_ROWS = 500;
 
+// One place that turns a query into SQL, shared by list() and count() so a
+// list's number can never disagree with the rows it shows.
+function whereClause(userId: number, query: ApplicationQuery): { sql: string; params: (string | number)[] } {
+  const where: string[] = ["user_id = ?"];
+  const params: (string | number)[] = [userId];
+  if (!query.includeArchived) where.push("archived_at IS NULL");
+  const anyOf = (column: string, values: readonly string[] | undefined) => {
+    if (!values?.length) return;
+    where.push(`${column} IN (${values.map(() => "?").join(", ")})`);
+    params.push(...values);
+  };
+  anyOf("status", query.statuses);
+  anyOf("role_function", query.roleFunctions);
+  anyOf("sector", query.sectors);
+  if (query.q) {
+    const like = `%${escapeLike(query.q)}%`;
+    where.push("(company LIKE ? ESCAPE '\\' OR role_title LIKE ? ESCAPE '\\' OR location LIKE ? ESCAPE '\\' OR notes LIKE ? ESCAPE '\\')");
+    params.push(like, like, like, like);
+  }
+  return { sql: where.join(" AND "), params };
+}
+
 export function createApplicationRepository(db: Db): ApplicationRepository {
   const selectOne = db.prepare("SELECT * FROM applications WHERE id = ? AND user_id = ?");
 
@@ -135,26 +157,16 @@ export function createApplicationRepository(db: Db): ApplicationRepository {
     },
 
     list(userId, query: ApplicationQuery) {
-      const where: string[] = ["user_id = ?"];
-      const params: (string | number)[] = [userId];
-      if (!query.includeArchived) where.push("archived_at IS NULL");
-      const anyOf = (column: string, values: readonly string[] | undefined) => {
-        if (!values?.length) return;
-        where.push(`${column} IN (${values.map(() => "?").join(", ")})`);
-        params.push(...values);
-      };
-      anyOf("status", query.statuses);
-      anyOf("role_function", query.roleFunctions);
-      anyOf("sector", query.sectors);
-      if (query.q) {
-        const like = `%${escapeLike(query.q)}%`;
-        where.push("(company LIKE ? ESCAPE '\\' OR role_title LIKE ? ESCAPE '\\' OR notes LIKE ? ESCAPE '\\')");
-        params.push(like, like, like);
-      }
+      const { sql, params } = whereClause(userId, query);
       const rows = db
-        .prepare(`SELECT * FROM applications WHERE ${where.join(" AND ")} ORDER BY updated_at DESC, id DESC LIMIT ${MAX_ROWS}`)
+        .prepare(`SELECT * FROM applications WHERE ${sql} ORDER BY updated_at DESC, id DESC LIMIT ${MAX_ROWS}`)
         .all(...params) as AppRow[];
       return rows.map(toApplication);
+    },
+
+    count(userId, query: ApplicationQuery) {
+      const { sql, params } = whereClause(userId, query);
+      return (db.prepare(`SELECT COUNT(*) AS n FROM applications WHERE ${sql}`).get(...params) as { n: number }).n;
     },
 
     update(userId, id, patch, dedupeKey, now) {

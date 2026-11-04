@@ -27,8 +27,12 @@ npm run tracker      # http://localhost:3001
 | `POST /api/applications/:id/status` | move through the pipeline (`{status, on?, note?}`) |
 | `POST /api/applications/:id/status/undo` | undo the last status change |
 | `DELETE /api/applications/:id` | archive (recoverable) |
+| `GET /api/lists` | your saved filters, each with a live `count` (starters: SWE, PM, Fintech-adjacent) |
+| `POST /api/lists` | create one: `{name, filter: {statuses?, roleFunctions?, sectors?, includeArchived?}}` |
+| `GET /api/lists/:id/applications` | run the list; narrow it with `status`, `function`, `sector`, `q` |
+| `PATCH /api/lists/:id`, `DELETE /api/lists/:id` | rename / re-filter / delete (applications are never touched) |
 
-Roadmap: saved-filter lists → import (Notion first, then CSV/XLSX) → plain UI
+Roadmap: import (Notion first, then CSV/XLSX) → plain UI
 → contacts → export/backup. Everything below this section is the original Delta.
 
 ## Why

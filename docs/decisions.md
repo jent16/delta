@@ -77,3 +77,43 @@ application doesn't block re-adding the same one.
 `{"compny": "Stripe"}` is a 400, not a silently dropped value. Importers will
 rely on this: a wrong column mapping should fail loudly in the preview, not
 quietly lose data.
+
+## 11. A list is a saved filter, not a container
+`SWE`, `PM` and `Fintech-adjacent` are rows in a `lists` table holding a filter
+(`{"roleFunctions":["SWE"]}`), never application ids. So there is no "move to
+list" and no copy to keep in sync: an application simply matches whichever
+filters describe it, counts update the moment anything changes, and creating a
+new list is instant and retroactive. **Cost:** a list can't hold a hand-picked,
+arbitrary set of applications. If you ever want that, it's a different feature
+(tags), and it would sit beside lists rather than replace them.
+
+## 12. Free-text search is not part of a saved filter
+A list names a *category you return to*; a search is a *question you ask inside
+it*. `GET /api/lists/:id/applications?q=jane` narrows the list; the narrowing
+can only remove rows (`narrowQuery`). Two traps that is built to avoid: an
+ad-hoc query can't reveal archived rows the list hides, and a contradictory
+narrowing (PMs inside the SWE list) returns *nothing* — `narrowQuery` returns
+`null` because the repository reads an empty list as "no constraint" and would
+otherwise show everything. Tests pin both.
+
+## 13. "Fintech" and "Finance" are different sectors
+Stripe is a software company serving finance; Jane Street, a bank or a PE fund
+*is* finance. Merging them hides a real difference when you filter, but the
+"Fintech-adjacent" list deliberately matches both: SWE or Quant roles at either.
+Adding the sector needed no migration because `sector` is validated in the
+domain, not by a database CHECK — the closed list can grow with a code change.
+The trade-off is that the database itself would accept `"Plumbing"`; only the
+domain stops it.
+
+## 14. Starter lists are seeded by the migration, not at startup
+Seeding at startup would resurrect a list you deleted every time the server
+restarted. A migration runs exactly once, so deleting a starter list sticks.
+The cost is that the filter JSON lives in SQL, where the type checker can't see
+it — so a test runs every seeded filter through the real validator.
+
+## 15. Defence in depth for ownership
+The service checks a list belongs to the caller; the repository's SQL *also*
+filters by `user_id`. The second check is unreachable through the service, which
+is why mutation testing found it untested — it now has its own repository-level
+test. The point of the redundancy is that one forgotten check in a future
+service can't leak another user's data.

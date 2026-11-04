@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDatabase } from "./connection.ts";
-import { migrate } from "./migrate.ts";
+import { DEFAULT_MIGRATIONS_DIR, migrate } from "./migrate.ts";
 
 function withDir(files: Record<string, string>, run: (dir: string) => void) {
   const dir = mkdtempSync(join(tmpdir(), "migrations-"));
@@ -18,10 +18,14 @@ function withDir(files: Record<string, string>, run: (dir: string) => void) {
 
 test("the real migrations apply to an empty database, and again as a no-op", () => {
   const db = openDatabase(":memory:");
-  assert.deepEqual(migrate(db), ["0001"]);
+  // every file on disk is applied, in order, with no gaps — without hardcoding
+  // the list, so adding migration 0003 doesn't mean editing this test
+  const onDisk = readdirSync(DEFAULT_MIGRATIONS_DIR).filter((f) => f.endsWith(".sql")).map((f) => f.slice(0, 4)).sort();
+  assert.deepEqual(onDisk, onDisk.map((_, i) => String(i + 1).padStart(4, "0")));
+  assert.deepEqual(migrate(db), onDisk);
   assert.deepEqual(migrate(db), []); // idempotent: safe to run on every startup
   const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as { name: string }[]).map((r) => r.name);
-  for (const t of ["users", "applications", "status_events", "schema_migrations"]) assert.ok(tables.includes(t), t);
+  for (const t of ["users", "applications", "status_events", "lists", "schema_migrations"]) assert.ok(tables.includes(t), t);
   assert.equal((db.prepare("SELECT COUNT(*) c FROM users").get() as { c: number }).c, 1); // the local user exists
 });
 

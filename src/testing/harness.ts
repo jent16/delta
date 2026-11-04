@@ -6,17 +6,22 @@ import { createApp } from "../api/app.ts";
 import { openDatabase } from "../db/connection.ts";
 import { migrate } from "../db/migrate.ts";
 import { createApplicationRepository } from "../repositories/applications.ts";
+import { createListRepository } from "../repositories/lists.ts";
 import { createApplicationService } from "../services/applications.ts";
+import { createListService } from "../services/lists.ts";
 
 export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0)) {
   let current = startAt;
   const clock = () => current;
   const db = openDatabase(":memory:");
   migrate(db);
-  const service = createApplicationService({ repo: createApplicationRepository(db), clock });
+  const applicationRepo = createApplicationRepository(db);
+  const service = createApplicationService({ repo: applicationRepo, clock });
+  const lists = createListService({ lists: createListRepository(db), applications: applicationRepo, clock });
   return {
     db,
     service,
+    lists,
     clock,
     /** Moves the fake clock forward, so tests can create "history". */
     advance(days: number) {
@@ -27,7 +32,7 @@ export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0)) {
 
 export async function startApi(userId = 1) {
   const t = makeTracker();
-  const app = createApp({ applications: t.service, currentUserId: () => userId });
+  const app = createApp({ applications: t.service, lists: t.lists, currentUserId: () => userId });
   const server = await new Promise<import("node:http").Server>((resolve) => {
     const s = app.listen(0, () => resolve(s));
   });

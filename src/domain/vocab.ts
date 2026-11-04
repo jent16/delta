@@ -11,8 +11,13 @@
 export const ROLE_FUNCTIONS = ["SWE", "PM", "Data", "Quant", "Design", "Other"] as const;
 export type RoleFunction = (typeof ROLE_FUNCTIONS)[number];
 
+// "Finance" is the firms that ARE the market (quant/trading firms, banks,
+// private equity, asset managers); "Fintech" is software companies serving it
+// (payments, neobanks, trading apps). An SWE role at either is "fintech-adjacent"
+// — the saved list matches both — but they are different employers.
 export const SECTORS = [
   "Fintech",
+  "Finance",
   "Healthcare",
   "E-commerce/Retail",
   "Enterprise Software",

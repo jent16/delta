@@ -9,7 +9,9 @@ import { createApp } from "./api/app.ts";
 import { openDatabase } from "./db/connection.ts";
 import { migrate } from "./db/migrate.ts";
 import { createApplicationRepository } from "./repositories/applications.ts";
+import { createListRepository } from "./repositories/lists.ts";
 import { createApplicationService } from "./services/applications.ts";
+import { createListService } from "./services/lists.ts";
 
 // User data lives in its own file, apart from the rebuildable delta.db:
 // you can delete delta.db any time; never delete this one.
@@ -19,8 +21,11 @@ const db = openDatabase(join(dataDir, "tracker.db"));
 const applied = migrate(db);
 if (applied.length) console.log(`applied migrations: ${applied.join(", ")}`);
 
-const applications = createApplicationService({ repo: createApplicationRepository(db), clock: () => new Date() });
-const app = createApp({ applications, currentUserId: () => 1 });
+const clock = () => new Date();
+const applicationRepo = createApplicationRepository(db);
+const applications = createApplicationService({ repo: applicationRepo, clock });
+const lists = createListService({ lists: createListRepository(db), applications: applicationRepo, clock });
+const app = createApp({ applications, lists, currentUserId: () => 1 });
 
 const port = Number(process.env.TRACKER_PORT) || 3001;
 app.listen(port, () => console.log(`Tracker API on http://localhost:${port}`));

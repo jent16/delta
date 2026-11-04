@@ -41,8 +41,8 @@ export class InvalidTransitionError extends Error {
 
 export class DuplicateError extends Error {
   readonly existingId: number;
-  constructor(existingId: number) {
-    super(`you already have this application (#${existingId})`);
+  constructor(existingId: number, what = "application") {
+    super(`you already have this ${what} (#${existingId})`);
     this.name = "DuplicateError";
     this.existingId = existingId;
   }

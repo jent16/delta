@@ -18,6 +18,29 @@ layers and the one rule that holds them together) and
 npm run tracker      # http://localhost:3001
 ```
 
+**Pipeline.** Every application moves through a fixed set of statuses, and
+each change is stored with its date:
+
+```
+saved -> drafting -> applied -> assessment -> interview -> offer
+                  (any open stage can end as rejected / withdrawn / ghosted)
+```
+
+Illegal jumps (Saved -> Offer, Drafting -> Interview) are refused with the
+list of allowed moves, and the last change can be undone.
+
+**Lists.** `SWE`, `PM` and `Fintech-adjacent` are saved *filters* over one
+table, not folders. An application matches every list whose filter fits it, and
+counts update as soon as anything changes. Roles have a `roleFunction` (SWE, PM,
+Data, Quant, Design, Other) and a `sector` (Fintech, Finance, Healthcare, ...);
+"Fintech-adjacent" means SWE or Quant roles at a Finance or Fintech employer.
+
+**Your data** lives in `var/tracker.db` (gitignored, and the only copy: back it
+up). Its schema changes only through numbered SQL files in
+`src/db/migrations/`, applied automatically on startup; the runner refuses to
+run if an applied migration was edited. Set `DELTA_DATA_DIR` to keep the data
+elsewhere.
+
 | Route | What it does |
 |---|---|
 | `POST /api/applications` | add one (`company` and `roleTitle` required) |
@@ -32,8 +55,9 @@ npm run tracker      # http://localhost:3001
 | `GET /api/lists/:id/applications` | run the list; narrow it with `status`, `function`, `sector`, `q` |
 | `PATCH /api/lists/:id`, `DELETE /api/lists/:id` | rename / re-filter / delete (applications are never touched) |
 
-Roadmap: import (Notion first, then CSV/XLSX) → plain UI
-→ contacts → export/backup. Everything below this section is the original Delta.
+Roadmap: import from your Notion trackers (SWE, PM and Fintech share one column
+layout, then CSV/XLSX) → plain UI with company search → contacts and alumni
+helper → export/backup. Everything below this section is the original Delta.
 
 ## Why
 
@@ -335,6 +359,11 @@ npm run typecheck
 Node's built-in test runner (no extra dependencies); CI runs the same
 command on every push (`.github/workflows/ci.yml`).
 
+- **Tracker** (`src/**/*.test.ts`) — the status state machine (every
+  from/to pair), validation, saved lists, migrations, and the HTTP API, all
+  against a real in-memory SQLite database with only the clock faked. An
+  architecture test fails the build if a layer imports from one it shouldn't.
+  Mutation testing (deliberately injecting bugs) found and closed several gaps.
 - **Unit** — location/term/degree parsing and the Find Openings filter
   cascade (against stubbed Simplify data), Notion property mapping, and the
   closed lists (including the "last item is the catch-all" convention

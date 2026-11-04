@@ -1,6 +1,6 @@
 // The application pipeline, as a state machine.
 //
-//   saved -> applied -> assessment -> interview -> offer
+//   saved -> drafting -> applied -> assessment -> interview -> offer
 //   any open stage can also end as: rejected / withdrawn / ghosted
 //
 // A status is a closed set, so it is a union type (not free text): the
@@ -10,7 +10,7 @@
 // (A string-literal union instead of a TypeScript `enum`: enums generate
 // runtime code, which Node's built-in type stripping can't run.)
 
-export const STATUSES = ["saved", "applied", "assessment", "interview", "offer", "rejected", "withdrawn", "ghosted"] as const;
+export const STATUSES = ["saved", "drafting", "applied", "assessment", "interview", "offer", "rejected", "withdrawn", "ghosted"] as const;
 export type Status = (typeof STATUSES)[number];
 
 // The rules, written as data so they can be read, tested exhaustively, and
@@ -19,7 +19,8 @@ export type Status = (typeof STATUSES)[number];
 //   - rejected and withdrawn are final
 //   - ghosted is *stalled*, not final: they sometimes reply months later
 const TRANSITIONS: Readonly<Record<Status, readonly Status[]>> = {
-  saved: ["applied", "withdrawn"],
+  saved: ["drafting", "applied", "withdrawn"], // "applied" directly: logging something you already submitted
+  drafting: ["applied", "withdrawn"], // writing the answers; not submitted yet
   applied: ["assessment", "interview", "offer", "rejected", "withdrawn", "ghosted"],
   assessment: ["interview", "offer", "rejected", "withdrawn", "ghosted"],
   interview: ["offer", "rejected", "withdrawn", "ghosted"],

@@ -15,7 +15,7 @@ schema changes" was fine. A tracker's rows are the only copy. Separate files
 mean the rebuildable data can never endanger the irreplaceable data.
 
 ## 3. Fixed status pipeline with dated history
-`saved -> applied -> assessment -> interview -> offer`, ending in `rejected`,
+`saved -> drafting -> applied -> assessment -> interview -> offer`, ending in `rejected`,
 `withdrawn` or `ghosted`. Every change is a row in `status_events`.
 - *Alternative: free-form statuses per list.* More flexible, but the app can't
   compute "response rate" if it doesn't know which statuses mean "applied".
@@ -117,3 +117,19 @@ filters by `user_id`. The second check is unreachable through the service, which
 is why mutation testing found it untested — it now has its own repository-level
 test. The point of the redundancy is that one forgotten check in a future
 service can't leak another user's data.
+
+## 16. Adding a status meant rebuilding two tables (and teaching the runner how)
+Your Notion flow was Bookmarked -> In process (writing the answers) -> Applied,
+so the pipeline gained `drafting` between Saved and Applied (migration 0003)
+rather than folding it into Saved. The cost of keeping status a database CHECK:
+SQLite cannot alter a CHECK, so the migration creates new tables, copies every
+row, drops the old ones and renames. With foreign keys on, dropping
+`applications` would silently cascade-delete every status event, so the
+migration runner now switches foreign keys off around a migration (the pragma
+can't change inside a transaction), runs `foreign_key_check` before the commit
+(any dangling reference rolls the whole migration back) and always turns them
+back on. A test builds a database as it was before 0003, fills it, upgrades it,
+and checks nothing was lost. **Lesson:** a status list in a CHECK is safe but
+expensive to change; the alternative (validate only in the domain) would have
+made this a one-line change at the price of the database no longer guarding
+itself.

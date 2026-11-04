@@ -66,15 +66,28 @@ export function migrate(db: Db, dir: string = DEFAULT_MIGRATIONS_DIR): string[] 
       }
       continue;
     }
-    db.transaction(() => {
-      db.exec(f.sql);
-      db.prepare("INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)").run(
-        f.version,
-        f.name,
-        f.checksum,
-        new Date().toISOString(),
-      );
-    })();
+    // SQLite cannot ALTER a CHECK constraint, so some migrations must rebuild a
+    // table (create new, copy, drop old, rename). With foreign keys on, DROP TABLE
+    // would cascade-delete child rows, and the pragma cannot be changed inside a
+    // transaction — so it is switched off around the transaction and re-enabled
+    // after. Safety is restored by foreign_key_check, run BEFORE commit: if the
+    // migration left any dangling reference, the whole migration rolls back.
+    db.pragma("foreign_keys = OFF");
+    try {
+      db.transaction(() => {
+        db.exec(f.sql);
+        const dangling = db.pragma("foreign_key_check") as unknown[];
+        if (dangling.length) throw new Error(`migration ${f.version}_${f.name} left ${dangling.length} broken foreign key reference(s)`);
+        db.prepare("INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)").run(
+          f.version,
+          f.name,
+          f.checksum,
+          new Date().toISOString(),
+        );
+      })();
+    } finally {
+      db.pragma("foreign_keys = ON");
+    }
     newlyApplied.push(f.version);
   }
   return newlyApplied;

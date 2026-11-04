@@ -189,8 +189,8 @@ export function parseNewApplication(rawInput: unknown, today: string): NewApplic
 
   const fields = complete(parsed);
   const resolved = status ?? (fields.appliedOn ? "applied" : "saved");
-  // saved has no meaningful date of its own; everything else happened on appliedOn if given
-  return { fields, status: resolved, statusOn: resolved === "saved" ? today : (fields.appliedOn ?? today) };
+  // saved/drafting have no meaningful date of their own; everything else happened on appliedOn if given
+  return { fields, status: resolved, statusOn: resolved === "saved" || resolved === "drafting" ? today : (fields.appliedOn ?? today) };
 }
 
 /** An edit: any subset of fields. Status is changed through its own operation. */

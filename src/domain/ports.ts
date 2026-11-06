@@ -5,6 +5,7 @@
 // swap in anything that satisfies the interface.
 
 import type { Application, ApplicationFields, ApplicationPatch, ApplicationQuery, NewApplication, StatusChange, StatusEvent } from "./application.ts";
+import type { ExportedApplication } from "./export.ts";
 import type { ListFilter, ListPatch, NewList, SavedList } from "./list.ts";
 
 export interface ApplicationRepository {
@@ -22,6 +23,8 @@ export interface ApplicationRepository {
   undoLastStatusChange(userId: number, id: number, now: string): Application | null;
   events(userId: number, id: number): StatusEvent[];
   archive(userId: number, id: number, now: string): boolean;
+  /** Every application INCLUDING archived ones, each with its history, with no row cap. For exports. */
+  exportAll(userId: number): ExportedApplication[];
 }
 
 export interface ListRepository {

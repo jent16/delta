@@ -7,6 +7,7 @@ import express from "express";
 import type { ErrorRequestHandler, Request } from "express";
 import { DuplicateError, InvalidTransitionError, NotFoundError, SourceError, ValidationError } from "../domain/errors.ts";
 import type { ApplicationService } from "../services/applications.ts";
+import type { ExportService } from "../services/export.ts";
 import type { ImportService } from "../services/import.ts";
 import type { ListService } from "../services/lists.ts";
 
@@ -14,6 +15,7 @@ export interface AppDeps {
   applications: ApplicationService;
   lists: ListService;
   imports: ImportService;
+  exports: ExportService;
   /**
    * The one place "who is making this request" is decided. Today there is a
    * single local user. When login exists, this reads a session instead —
@@ -43,7 +45,7 @@ const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
 };
 
 export function createApp(deps: AppDeps) {
-  const { applications, lists, imports, currentUserId } = deps;
+  const { applications, lists, imports, exports: exporter, currentUserId } = deps;
   const app = express();
   app.use(express.json());
 
@@ -113,6 +115,19 @@ export function createApp(deps: AppDeps) {
 
   app.post("/api/import/notion/commit", async (req, res) => {
     res.json(await imports.commit(currentUserId(req), req.body));
+  });
+
+  // --- export: your data as a file you can open anywhere (not the backup; see db/backup.ts) ---
+  app.get("/api/export", (req, res) => {
+    const { filename, body } = exporter.json(currentUserId(req));
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.json(body);
+  });
+
+  app.get("/api/export.csv", (req, res) => {
+    const { filename, body } = exporter.csv(currentUserId(req));
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.type("text/csv; charset=utf-8").send(body);
   });
 
   app.use(errorHandler);

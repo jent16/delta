@@ -11,7 +11,11 @@
     "dev": "node server.js --mock",
     "typecheck": "tsc --noEmit",
     "tracker": "node src/main.ts",
-    "import:notion": "node --env-file-if-exists=.env src/import-notion.ts"
+    "import:notion": "node --env-file-if-exists=.env src/import-notion.ts",
+    "backup": "node --env-file-if-exists=.env src/data-cli.ts backup",
+    "backups": "node --env-file-if-exists=.env src/data-cli.ts backups",
+    "restore": "node --env-file-if-exists=.env src/data-cli.ts restore",
+    "export": "node --env-file-if-exists=.env src/data-cli.ts export"
   },
   "repository": {
     "type": "git",

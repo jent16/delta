@@ -5,6 +5,7 @@
 
 import { join } from "node:path";
 import { composeTracker } from "./compose.ts";
+import { createBackup } from "./db/backup.ts";
 import { ValidationError } from "./domain/errors.ts";
 import type { PlanItem } from "./services/import.ts";
 
@@ -21,7 +22,7 @@ if (!database) {
   process.exit(2);
 }
 
-const { imports } = composeTracker({ dataDir: process.env.DELTA_DATA_DIR ?? join(process.cwd(), "var") });
+const { imports, db, backupDir } = composeTracker({ dataDir: process.env.DELTA_DATA_DIR ?? join(process.cwd(), "var") });
 const request = { database, roleFunction: flag("function"), sector: flag("sector") };
 
 const SYMBOL: Record<string, string> = { create: "+", already_imported: "=", duplicate: "~", invalid: "!" };
@@ -33,6 +34,10 @@ const line = (i: PlanItem): string => {
 };
 
 try {
+  if (commit) {
+    const b = createBackup(db, backupDir, { label: "pre-import" });
+    console.log(`backed up first: ${b.file} (${b.applications} applications)`);
+  }
   const result = commit ? await imports.commit(1, request) : await imports.preview(1, request);
   for (const action of ["create", "invalid", "duplicate", "already_imported"] as const) {
     const items = result.items.filter((i) => i.action === action);

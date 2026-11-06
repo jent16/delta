@@ -214,6 +214,21 @@ export function createApplicationRepository(db: Db): ApplicationRepository {
       return (db.prepare("SELECT * FROM status_events WHERE application_id = ? ORDER BY id").all(id) as EventRow[]).map(toEvent);
     },
 
+    exportAll(userId) {
+      const apps = (db.prepare("SELECT * FROM applications WHERE user_id = ? ORDER BY id").all(userId) as AppRow[]).map(toApplication);
+      // one query for all events, grouped in memory, instead of one query per application
+      const events = db
+        .prepare("SELECT e.* FROM status_events e JOIN applications a ON a.id = e.application_id WHERE a.user_id = ? ORDER BY e.id")
+        .all(userId) as EventRow[];
+      const byApp = new Map<number, StatusEvent[]>();
+      for (const e of events) {
+        const list = byApp.get(e.application_id) ?? [];
+        list.push(toEvent(e));
+        byApp.set(e.application_id, list);
+      }
+      return apps.map((application) => ({ application, history: byApp.get(application.id) ?? [] }));
+    },
+
     archive(userId, id, now) {
       const res = db.prepare("UPDATE applications SET archived_at = ?, updated_at = ? WHERE id = ? AND user_id = ? AND archived_at IS NULL").run(now, now, id, userId);
       return res.changes > 0;

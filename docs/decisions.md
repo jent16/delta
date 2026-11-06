@@ -177,3 +177,38 @@ Two Notion rows with the same company, role and term are one application in
 Delta. The older row is imported and the newer is reported as a duplicate, never
 silently dropped. If it was really a re-application, give it a term (or a
 different role) in Notion and re-run.
+
+## 22. Backups use SQLite's own snapshot, and are verified before they count
+`VACUUM INTO` produces a consistent copy while the server runs. Copying the
+file is the obvious approach and the wrong one: in WAL mode recent writes can
+live in a separate `-wal` file, so a file copy may omit them or catch a write
+half-done. Each backup is then opened, integrity-checked, and its row counts
+compared with the live database; a copy that fails is deleted and reported. A
+backup you haven't checked is a hope, not a backup.
+*Cost:* a snapshot rewrites the whole file each time (fine at ~130 KB; if it
+ever grows to hundreds of MB, incremental backups would be worth the complexity).
+
+## 23. Back up at the moments that are dangerous, not just on a timer
+Besides a periodic backup (startup, then when the newest is over 12 hours old),
+a backup is taken automatically before a migration runs against existing data
+and before an import commits. Those are the routine operations that rewrite
+many rows, so they get a labelled backup that pruning never deletes. A new
+install makes none: there is nothing to protect yet.
+
+## 24. Restore is conservative: it refuses rather than guesses
+It will not restore a damaged backup, a backup from a newer schema, or while
+the database looks in use. That last one matters most: if the server is running
+it keeps writing to the file it already opened; replacing the file underneath it
+would silently throw those writes away. The signal is the `-wal`/`-shm` files an
+open database leaves beside it. A crash can leave them too, which produces a
+false alarm; that is the safe direction, and `force` exists for it. Restore
+always saves the current database first (`pre-restore`), and removes the old
+database's `-wal`/`-shm` so they cannot be replayed onto the restored data.
+
+## 25. Export is a separate thing from backup
+A backup is the database file and is only useful to this program. An export is
+JSON or CSV with the full status history, meant for reading elsewhere. They are
+not interchangeable, and there is deliberately no "restore from export":
+that would be a second, weaker import path. CSV cells that start with `= + - @`
+are prefixed with an apostrophe, because a note pasted from a web page could
+otherwise run as a spreadsheet formula when the file is opened.

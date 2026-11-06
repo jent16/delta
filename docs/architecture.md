@@ -26,7 +26,8 @@ HTTP request
 
  repositories/   the only place SQL exists. Implements the *port* declared in
                  domain/ports.ts, translating rows <-> domain objects.
- db/             opening the database and applying migrations.
+ db/             opening the database, applying migrations, and backing up /
+                 restoring the database file.
  compose.ts      the composition root: builds every object and hands each one
                  what it needs. The only place that knows about all the layers.
  main.ts, import-notion.ts

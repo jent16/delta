@@ -39,8 +39,23 @@ function loadMigrations(dir: string): MigrationFile[] {
   });
 }
 
+/** The versions of every migration file in `dir` — what this version of the code knows how to reach. */
+export function knownMigrationVersions(dir: string = DEFAULT_MIGRATIONS_DIR): string[] {
+  return loadMigrations(dir).map((m) => m.version);
+}
+
+export interface MigrateOptions {
+  /**
+   * Called once, before the first change, only when migrations are about to
+   * run against a database that already has data (not a brand-new one). The
+   * place to take a backup: a migration is the one routine operation that
+   * rewrites your tables.
+   */
+  beforeApply?: (pendingVersions: string[]) => void;
+}
+
 /** Applies every pending migration. Returns the versions it applied. */
-export function migrate(db: Db, dir: string = DEFAULT_MIGRATIONS_DIR): string[] {
+export function migrate(db: Db, dir: string = DEFAULT_MIGRATIONS_DIR, options: MigrateOptions = {}): string[] {
   db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
     version TEXT PRIMARY KEY, name TEXT NOT NULL, checksum TEXT NOT NULL, applied_at TEXT NOT NULL)`);
 
@@ -56,6 +71,9 @@ export function migrate(db: Db, dir: string = DEFAULT_MIGRATIONS_DIR): string[] 
       throw new Error(`migration ${version} is recorded as applied but its file is missing`);
     }
   }
+
+  const pending = files.filter((f) => !applied.has(f.version));
+  if (pending.length && applied.size > 0) options.beforeApply?.(pending.map((f) => f.version));
 
   const newlyApplied: string[] = [];
   for (const f of files) {

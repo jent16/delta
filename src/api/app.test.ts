@@ -119,3 +119,16 @@ test("import over HTTP: preview writes nothing, commit does, errors map to sensi
   assert.equal(refused.status, 502);
   assert.equal(refused.body.error, "source_error");
 });
+
+test("export over HTTP: JSON and CSV, both as downloads", async (t) => {
+  const api = await startApi();
+  t.after(() => api.close());
+  await api.call("POST", "/api/applications", { company: "Stripe", roleTitle: "SWE Intern", appliedOn: "2026-09-05" });
+  const json = await fetch(`${api.base}/api/export`);
+  assert.match(json.headers.get("content-disposition")!, /attachment; filename="delta-export-2026-09-15\.json"/);
+  assert.equal((await json.json()).applications[0].company, "Stripe");
+  const csv = await fetch(`${api.base}/api/export.csv`);
+  assert.match(csv.headers.get("content-type")!, /text\/csv/);
+  assert.match(csv.headers.get("content-disposition")!, /\.csv"/);
+  assert.match(await csv.text(), /^id,company,role_title/);
+});

@@ -59,7 +59,7 @@ with its own rebuildable `delta.db`.
 | 2 | Lists as saved filters (SWE, PM, Fintech-adjacent), search | done |
 | 2b | Drafting status (table rebuild, safe migration runner) | done |
 | 3 | Notion importer: preview, commit, idempotent. 130 applications imported | done |
-| 3b | Back up `var/tracker.db` (export + restore + scheduled copy) | **next** |
+| 3b | Backup, verified restore, automatic backups, JSON/CSV export | done |
 | 3c | API for the UI: company search, bulk edit (sector), stats, overdue list | next |
 | 4 | Plain UI: table, list sidebar, quick-add, status dropdown, detail + history | next |
 | 5 | Insights: funnel, response rate and time-in-stage per list | planned |
@@ -70,9 +70,10 @@ with its own rebuildable `delta.db`.
 | - | Optional: CSV/XLSX import, weekly ingest, sponsorship filter | when wanted |
 
 ### What each next step is for
-- **3b Backup.** The tracker holds the only copy of 130 applications. Export to
-  JSON/CSV, a one-command restore, and a dated copy of the database. Smallest
-  step, and it protects everything else.
+- **3b Backup (done).** The tracker holds the only copy of 130 applications.
+  Verified snapshots (automatic, plus before migrations and imports), a cautious
+  restore, and JSON/CSV export. Still worth doing: point `DELTA_BACKUP_DIR` at a
+  synced folder so a backup survives losing the disk.
 - **3c API for the UI.** Company search from Simplify listings (including closed
   ones, with free text as a fallback), set sector/function for many rows at once
   (63+ imports have no sector), stats, and "overdue follow-ups". Built and

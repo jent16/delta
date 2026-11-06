@@ -55,6 +55,38 @@ elsewhere.
 | `GET /api/lists/:id/applications` | run the list; narrow it with `status`, `function`, `sector`, `q` |
 | `PATCH /api/lists/:id`, `DELETE /api/lists/:id` | rename / re-filter / delete (applications are never touched) |
 
+### Backups, restore and export
+
+`var/tracker.db` holds the only copy of your applications, so it is backed up
+automatically and you can do it by hand:
+
+```bash
+npm run backup                          # a verified snapshot now -> var/backups/
+npm run backups                         # list them
+npm run restore -- <name>               # PREVIEW: shows what would change, changes nothing
+npm run restore -- <name> --yes         # restore (stop `npm run tracker` first)
+npm run export                          # readable copy of everything -> var/exports/*.json
+npm run export -- --format csv          # same as a spreadsheet-friendly CSV
+```
+
+- **Automatic backups:** when the server starts and then every few hours while
+  it runs (if the newest is over 12 hours old; the newest 30 are kept); before
+  any database migration touches existing data; and before `import:notion
+  --commit`. Those last two are labelled and never deleted.
+- **Every backup is verified** (opened, integrity-checked, row counts compared
+  with the live data) before it counts. A snapshot is taken with SQLite itself,
+  not by copying the file, so it is consistent even while the server is writing.
+- **Restore is cautious:** it checks the backup is intact and not from a newer
+  version, saves your current database as a `pre-restore` backup first, and
+  refuses if the server looks like it is running.
+- **The backups are on the same disk as your data.** To survive losing the disk,
+  put `DELTA_BACKUP_DIR=/path/to/a/synced/folder` (iCloud Drive, Dropbox) in
+  `.env`.
+- **Export is not the backup.** It is for reading your data elsewhere (CSV
+  formulas are neutralised so a note can't run in Excel/Sheets). Restore uses
+  the `.db` backups. Also available over HTTP: `GET /api/export` and
+  `/api/export.csv`.
+
 ### Importing from Notion
 
 One-time import of an existing tracker. It **previews first** and writes

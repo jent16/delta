@@ -9,6 +9,7 @@ import { createApplicationRepository } from "../repositories/applications.ts";
 import { createImportLedger } from "../repositories/import-ledger.ts";
 import { createListRepository } from "../repositories/lists.ts";
 import { createApplicationService } from "../services/applications.ts";
+import { createExportService } from "../services/export.ts";
 import { createImportService } from "../services/import.ts";
 import type { SourceFactory } from "../services/import.ts";
 import { createListService } from "../services/lists.ts";
@@ -28,11 +29,14 @@ export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0), sources?:
     ledger: createImportLedger(db),
     clock,
   });
+  const listRepo = createListRepository(db);
+  const exports = createExportService({ applications: applicationRepo, lists: listRepo, clock });
   return {
     db,
     service,
     lists,
     imports,
+    exports,
     clock,
     /** Moves the fake clock forward, so tests can create "history". */
     advance(days: number) {
@@ -43,7 +47,7 @@ export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0), sources?:
 
 export async function startApi(userId = 1, sources?: SourceFactory) {
   const t = makeTracker(undefined, sources);
-  const app = createApp({ applications: t.service, lists: t.lists, imports: t.imports, currentUserId: () => userId });
+  const app = createApp({ applications: t.service, lists: t.lists, imports: t.imports, exports: t.exports, currentUserId: () => userId });
   const server = await new Promise<import("node:http").Server>((resolve) => {
     const s = app.listen(0, () => resolve(s));
   });

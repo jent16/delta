@@ -132,3 +132,28 @@ test("a migration that leaves a dangling foreign key is rolled back, and foreign
     },
   );
 });
+
+test("beforeApply fires once, before any change, and only for a database that already has data", () => {
+  withDir({ "0001_a.sql": "CREATE TABLE a (x);", "0002_b.sql": "CREATE TABLE b (x);", "0003_c.sql": "CREATE TABLE c (x);" }, (dir) => {
+    const db = openDatabase(":memory:");
+    const calls: string[][] = [];
+    migrate(db, dir, { beforeApply: (p) => calls.push(p) });
+    assert.equal(calls.length, 0); // a brand-new database has nothing to protect
+
+    withDir({ "0001_a.sql": "CREATE TABLE a (x);" }, (oldDir) => {
+      const existing = openDatabase(":memory:");
+      migrate(existing, oldDir);
+      let tablesAtCallback: string[] = [];
+      migrate(existing, dir, {
+        beforeApply: (p) => {
+          calls.push(p);
+          tablesAtCallback = (existing.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]).map((r) => r.name);
+        },
+      });
+      assert.deepEqual(calls, [["0002", "0003"]]);
+      assert.ok(!tablesAtCallback.includes("b"), "the callback ran before 0002 was applied");
+      migrate(existing, dir, { beforeApply: (p) => calls.push(p) });
+      assert.equal(calls.length, 1); // nothing pending -> not called again
+    });
+  });
+});

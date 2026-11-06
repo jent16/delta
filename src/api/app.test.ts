@@ -161,3 +161,17 @@ test("3c over HTTP: company search, bulk edit, stats and reminders", async (t) =
   assert.equal(rem.body.reminders.followUps.length, 1);
   assert.equal((await api.call("GET", "/api/reminders?days=-5")).status, 400);
 });
+
+test("bulk status change over HTTP", async (t) => {
+  const api = await startApi();
+  t.after(() => api.close());
+  const a = await api.call("POST", "/api/applications", { company: "A", roleTitle: "SWE", appliedOn: "2026-09-01" });
+  const b = await api.call("POST", "/api/applications", { company: "B", roleTitle: "SWE" }); // saved
+  const blocked = await api.call("POST", "/api/applications/bulk/status", { ids: [a.body.id, b.body.id], status: "ghosted" });
+  assert.equal(blocked.status, 400);
+  assert.match(blocked.body.issues[0].message, new RegExp(`#${b.body.id} \\(saved\\)`));
+  const ok = await api.call("POST", "/api/applications/bulk/status", { ids: [a.body.id], status: "ghosted", note: "silence" });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.body.applications[0].status, "ghosted");
+  assert.equal((await api.call("POST", "/api/applications/bulk/status", { ids: [999], status: "ghosted" })).status, 404);
+});

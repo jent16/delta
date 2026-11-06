@@ -7,7 +7,7 @@
 // imported. That one habit is what makes this layer testable: a test hands in
 // an in-memory database and a frozen clock.
 
-import { dedupeKey, parseApplicationPatch, parseBulkEdit, parseApplicationQuery, parseNewApplication, parseStatusChange } from "../domain/application.ts";
+import { dedupeKey, parseApplicationPatch, parseBulkEdit, parseBulkStatusChange, parseApplicationQuery, parseNewApplication, parseStatusChange } from "../domain/application.ts";
 import type { Application, StatusEvent } from "../domain/application.ts";
 import { toIsoDate } from "../domain/dates.ts";
 import { DuplicateError, InvalidTransitionError, NotFoundError, ValidationError } from "../domain/errors.ts";
@@ -24,6 +24,8 @@ export interface ApplicationService {
   changeStatus(userId: number, id: number, raw: unknown): Application;
   undoStatusChange(userId: number, id: number): Application;
   archive(userId: number, id: number): void;
+  /** Moves many applications to one status. Refuses unless EVERY one may legally make that move; then changes all or none. */
+  changeStatusMany(userId: number, raw: unknown): { updated: number; applications: Application[] };
   /** Changes the same safe fields on many applications, all or nothing. */
   editMany(userId: number, raw: unknown): { updated: number; applications: Application[] };
 }
@@ -94,6 +96,22 @@ export function createApplicationService(deps: { repo: ApplicationRepository; cl
     archive(userId, id) {
       mustFind(userId, id);
       repo.archive(userId, id, now());
+    },
+
+    changeStatusMany(userId, raw) {
+      const { ids, change } = parseBulkStatusChange(raw, today());
+      const current = ids.map((id) => ({ id, app: repo.findById(userId, id) }));
+      const missing = current.filter((c) => !c.app).map((c) => c.id);
+      if (missing.length) throw new NotFoundError(`application(s) ${missing.join(", ")}`);
+      // all-or-nothing: if even one can't legally make this move, say which, and change nothing
+      const blocked = current.filter((c) => !canTransition((c.app as Application).status, change.status));
+      if (blocked.length) {
+        throw new ValidationError([
+          { field: "ids", message: `cannot move to "${change.status}" from their current status: ${blocked.map((c) => `#${c.id} (${(c.app as Application).status})`).join(", ")}` },
+        ]);
+      }
+      const applications = repo.addStatusChangeMany(userId, ids, change, now());
+      return { updated: applications.length, applications };
     },
 
     editMany(userId, raw) {

@@ -68,6 +68,10 @@ export function createApp(deps: AppDeps) {
     res.json(applications.editMany(currentUserId(req), req.body));
   });
 
+  app.post("/api/applications/bulk/status", (req, res) => {
+    res.json(applications.changeStatusMany(currentUserId(req), req.body));
+  });
+
   app.get("/api/applications/:id", (req, res) => {
     res.json(applications.get(currentUserId(req), idParam(req)));
   });

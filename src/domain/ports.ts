@@ -19,6 +19,8 @@ export interface ApplicationRepository {
   update(userId: number, id: number, patch: ApplicationPatch, dedupeKey: string | null, now: string): Application | null;
   /** Records the event AND updates the application's cached status, atomically. */
   addStatusChange(userId: number, id: number, change: StatusChange, now: string): Application | null;
+  /** Records the same status change on every listed application in ONE transaction: all of them or none. */
+  addStatusChangeMany(userId: number, ids: number[], change: StatusChange, now: string): Application[];
   /** Removes the newest event and restores the previous status, atomically. */
   undoLastStatusChange(userId: number, id: number, now: string): Application | null;
   events(userId: number, id: number): StatusEvent[];

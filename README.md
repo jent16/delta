@@ -56,6 +56,7 @@ elsewhere.
 | `PATCH /api/lists/:id`, `DELETE /api/lists/:id` | rename / re-filter / delete (applications are never touched) |
 | `GET /api/applications?missing=sector` | what still needs filling in (`sector`, `term`, `location`, `url`); also works inside a list |
 | `POST /api/applications/bulk` | `{ids, set}`: change `sector`, `roleFunction`, `location`, `source`, `resumeVersion`, `followUpOn`, `deadlineOn` on many at once, all or nothing |
+| `POST /api/applications/bulk/status` | `{ids, status, on?, note?}`: move many to one status. Refuses unless every one may legally make the move (and says which can't); then changes all or none |
 | `GET /api/companies/search?q=` | type-ahead for quick-add: your own companies first, then Simplify's list, with "did you mean" for typos and a sector hint |
 | `GET /api/stats` | counts by status/function/sector, the funnel, response rate, median days to a response; `?list=<id>` or any application filter |
 | `GET /api/reminders` | follow-ups due, upcoming/missed deadlines, applications gone quiet; `?days=7&staleDays=21&list=<id>` |

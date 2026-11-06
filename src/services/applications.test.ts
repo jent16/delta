@@ -195,3 +195,57 @@ test("the repository's bulk update enforces ownership itself, even if a service 
   assert.equal(t.service.get(1, mine.id).application.sector, null);
   assert.equal(repo.updateMany(1, [], { sector: "Finance" }, "now"), 0); // nothing to do is not an error
 });
+
+// ---- bulk status change ----
+
+const applied = (service: ReturnType<typeof makeTracker>["service"], company: string, on = "2026-09-01") =>
+  service.add(1, { company, roleTitle: "SWE", appliedOn: on });
+
+test("changeStatusMany moves several applications and records a dated event on each", () => {
+  const t = makeTracker();
+  const a = applied(t.service, "A"); const b = applied(t.service, "B");
+  const r = t.service.changeStatusMany(1, { ids: [a.id, b.id], status: "ghosted", note: "no reply in 60 days" });
+  assert.deepEqual([r.updated, r.applications.map((x) => x.status)], [2, ["ghosted", "ghosted"]]);
+  const { events } = t.service.get(1, a.id);
+  assert.deepEqual(events.map((e) => [e.status, e.occurredOn, e.note]), [["applied", "2026-09-01", null], ["ghosted", "2026-09-15", "no reply in 60 days"]]);
+  // the cached status still equals the newest event (the invariant), and each can be undone on its own
+  assert.equal(t.service.undoStatusChange(1, a.id).status, "applied");
+  assert.equal(t.service.get(1, b.id).application.status, "ghosted");
+});
+
+test("changeStatusMany is all-or-nothing: one application that can't make the move blocks the whole batch, and it says which", () => {
+  const t = makeTracker();
+  const ok = applied(t.service, "OK");
+  const rejected = applied(t.service, "Rejected Co");
+  t.service.changeStatus(1, rejected.id, { status: "rejected" }); // final: can't become ghosted
+  const saved = t.service.add(1, { company: "Never Sent", roleTitle: "SWE" }); // saved -> ghosted is illegal too
+  assert.throws(
+    () => t.service.changeStatusMany(1, { ids: [ok.id, rejected.id, saved.id], status: "ghosted" }),
+    (e) => e instanceof ValidationError && e.message.includes(`#${rejected.id} (rejected)`) && e.message.includes(`#${saved.id} (saved)`) && !e.message.includes(`#${ok.id} `),
+  );
+  assert.equal(t.service.get(1, ok.id).application.status, "applied"); // the legal one was NOT changed
+  assert.equal(t.service.get(1, ok.id).events.length, 1);
+});
+
+test("changeStatusMany: unknown ids and other users' ids change nothing", () => {
+  const t = makeTracker();
+  t.db.prepare("INSERT INTO users (id, name, created_at) VALUES (2, 'Other', 'now')").run();
+  const mine = applied(t.service, "Mine");
+  const theirs = t.service.add(2, { company: "Theirs", roleTitle: "SWE", appliedOn: "2026-09-01" });
+  assert.throws(() => t.service.changeStatusMany(1, { ids: [mine.id, theirs.id], status: "ghosted" }), NotFoundError);
+  assert.throws(() => t.service.changeStatusMany(1, { ids: [mine.id, 999], status: "ghosted" }), NotFoundError);
+  assert.equal(t.service.get(1, mine.id).application.status, "applied");
+  assert.equal(t.service.get(2, theirs.id).application.status, "applied");
+});
+
+test("the repository rolls back EVERY change if one write in the batch fails (a real transaction, not a loop)", () => {
+  const t = makeTracker();
+  t.db.prepare("INSERT INTO users (id, name, created_at) VALUES (2, 'Other', 'now')").run();
+  const a = applied(t.service, "A");
+  const theirs = t.service.add(2, { company: "Theirs", roleTitle: "SWE", appliedOn: "2026-09-01" });
+  const repo = createApplicationRepository(t.db);
+  // the service would have refused this; calling the repository directly proves the transaction on its own
+  assert.throws(() => repo.addStatusChangeMany(1, [a.id, theirs.id], { status: "ghosted", on: "2026-09-15", note: null }, "now"));
+  assert.equal(t.service.get(1, a.id).application.status, "applied");
+  assert.equal(t.service.get(1, a.id).events.length, 1);
+});

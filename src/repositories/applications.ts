@@ -218,6 +218,20 @@ export function createApplicationRepository(db: Db): ApplicationRepository {
       return findById(userId, id);
     },
 
+    addStatusChangeMany(userId, ids, change, now) {
+      db.transaction(() => {
+        for (const id of ids) {
+          // each id must be this user's; if not, throwing rolls back every change made so far
+          if (!findById(userId, id)) throw new Error(`application ${id} not found for this user`);
+          db.prepare("INSERT INTO status_events (application_id, status, occurred_on, note, created_at) VALUES (?, ?, ?, ?, ?)").run(
+            id, change.status, change.on, change.note, now,
+          );
+          db.prepare("UPDATE applications SET status = ?, updated_at = ? WHERE id = ? AND user_id = ?").run(change.status, now, id, userId);
+        }
+      })();
+      return ids.map((id) => findById(userId, id) as Application);
+    },
+
     undoLastStatusChange(userId, id, now) {
       if (!findById(userId, id)) return null;
       db.transaction(() => {

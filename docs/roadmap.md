@@ -77,9 +77,8 @@ with its own rebuildable `delta.db`.
 - **3c API for the UI (done).** Company search (your own companies, then Simplify's
   list including closed postings, with "did you mean" for typos), bulk edit of
   safe fields, a `missing=` filter, stats and reminders. Built and tested before
-  any HTML, so the UI stays a thin skin. Open follow-ups: a bulk *status* change
-  ("mark these 70 silent ones ghosted") and classifying the 86 applications that
-  still have no sector.
+  any HTML, so the UI stays a thin skin. Also done: bulk *status* change (used to mark 71
+  silent applications ghosted) and a first pass classifying sectors (113 of 130 set).
 - **4 UI.** Function before looks: table with filters, list sidebar, quick-add,
   status change with an undo, detail page with the dated history. Design inspo
   can come later because the API underneath won't change.
@@ -94,9 +93,11 @@ with its own rebuildable `delta.db`.
   and the security work the unauthenticated legacy endpoints currently prevent.
 
 ## 4. Known gaps (worth fixing, not yet scheduled)
-- 86 imported applications have no sector, so they are invisible to
-  sector-based lists until set. The tools exist (`missing=sector`, bulk edit);
-  it needs your call on which sector each company is.
+- 17 applications (15 companies, e.g. Intuit, Grow, Amplify, Honeywell) still have
+  no sector because they couldn't be placed with confidence; set them with
+  `missing=sector` + bulk edit.
+- Sectors on the other 113 were best guesses by company name, applied in bulk;
+  worth a skim in the UI.
 - Imported typos stay as written (e.g. company names); a company directory
   (step 3c/4) is how they get cleaned.
 - Duplicates inside Notion are skipped, not merged: give a re-application a term

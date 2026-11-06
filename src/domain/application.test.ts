@@ -132,3 +132,19 @@ test("parseApplicationQuery: missing= takes a closed list of fields", () => {
   assert.deepEqual(parseApplicationQuery({ missing: "sector,term" }).missing, ["sector", "term"]);
   assert.throws(() => parseApplicationQuery({ missing: "company" }), ValidationError);
 });
+
+// ---- bulk status change ----
+import { parseBulkStatusChange } from "./application.ts";
+
+test("parseBulkStatusChange: ids deduplicated, date defaults to today, problems reported together", () => {
+  const ok = parseBulkStatusChange({ ids: [2, 1, 2], status: "ghosted", note: "no reply" }, TODAY);
+  assert.deepEqual(ok, { ids: [2, 1], change: { status: "ghosted", on: TODAY, note: "no reply" } });
+  assert.equal(parseBulkStatusChange({ ids: [1], status: "ghosted", on: "2026-09-01" }, TODAY).change.on, "2026-09-01");
+  assert.deepEqual(fieldsOf(catchValidation(() => parseBulkStatusChange({ ids: [], status: "nope" }, TODAY))), ["ids", "status"]);
+  assert.deepEqual(fieldsOf(catchValidation(() => parseBulkStatusChange({ ids: [1], status: "ghosted", on: "2026-02-31", typo: 1 }, TODAY))), ["on", "typo"]);
+  assert.deepEqual(fieldsOf(catchValidation(() => parseBulkStatusChange("nope", TODAY))), ["(body)"]);
+});
+function catchValidation(fn: () => unknown): ValidationError {
+  try { fn(); } catch (e) { return e as ValidationError; }
+  throw new Error("expected a ValidationError");
+}

@@ -305,6 +305,38 @@ export interface BulkEdit {
 
 export const MAX_BULK = 500;
 
+function parseIds(value: unknown, issues: ValidationIssue[]): number[] {
+  if (!Array.isArray(value) || value.length === 0) issues.push({ field: "ids", message: "must be a non-empty list of application ids" });
+  else if (value.length > MAX_BULK) issues.push({ field: "ids", message: `at most ${MAX_BULK} at a time` });
+  else if (value.some((x) => !Number.isInteger(x) || (x as number) < 1)) issues.push({ field: "ids", message: "every id must be a positive integer" });
+  else return [...new Set(value as number[])];
+  return [];
+}
+
+export interface BulkStatusChange {
+  ids: number[];
+  change: StatusChange;
+}
+
+/** `{ids, status, on?, note?}`: move many applications to the same status, on the same date. */
+export function parseBulkStatusChange(rawInput: unknown, today: string): BulkStatusChange {
+  if (typeof rawInput !== "object" || rawInput === null || Array.isArray(rawInput)) {
+    throw new ValidationError([{ field: "(body)", message: "must be a JSON object" }]);
+  }
+  const { ids: rawIds, ...rest } = rawInput as Record<string, unknown>;
+  const issues: ValidationIssue[] = [];
+  const ids = parseIds(rawIds, issues);
+  let change: StatusChange | undefined;
+  try {
+    change = parseStatusChange(rest, today);
+  } catch (e) {
+    if (!(e instanceof ValidationError)) throw e;
+    issues.push(...e.issues);
+  }
+  if (issues.length) throw new ValidationError(issues);
+  return { ids, change: change as StatusChange };
+}
+
 export function parseBulkEdit(rawInput: unknown): BulkEdit {
   const issues: ValidationIssue[] = [];
   if (typeof rawInput !== "object" || rawInput === null || Array.isArray(rawInput)) {
@@ -313,11 +345,7 @@ export function parseBulkEdit(rawInput: unknown): BulkEdit {
   const body = rawInput as Record<string, unknown>;
   for (const key of Object.keys(body)) if (key !== "ids" && key !== "set") issues.push({ field: key, message: "unknown field" });
 
-  let ids: number[] = [];
-  if (!Array.isArray(body.ids) || body.ids.length === 0) issues.push({ field: "ids", message: "must be a non-empty list of application ids" });
-  else if (body.ids.length > MAX_BULK) issues.push({ field: "ids", message: `at most ${MAX_BULK} at a time` });
-  else if (body.ids.some((x) => !Number.isInteger(x) || (x as number) < 1)) issues.push({ field: "ids", message: "every id must be a positive integer" });
-  else ids = [...new Set(body.ids as number[])];
+  const ids = parseIds(body.ids, issues);
 
   let set: ApplicationPatch = {};
   if (typeof body.set !== "object" || body.set === null || Array.isArray(body.set) || Object.keys(body.set).length === 0) {

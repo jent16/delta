@@ -255,3 +255,19 @@ A process that exits without closing a WAL-mode database leaves `-wal`/`-shm`
 files behind. Restore treats those as "the server is running", so the command
 line tools and the server (on Ctrl+C) now close the connection explicitly. A
 stale pair after a crash still gives a false alarm; that is the safe direction.
+
+## 31. Bulk status change refuses the whole batch if any one move is illegal
+The status rules exist so history is believable; a bulk action must not become a
+way around them. `POST /api/applications/bulk/status` checks every application
+against the transition table first and, if any can't make the move, changes
+nothing and names them ("#12 (rejected), #31 (saved)"). The writes run in one
+database transaction, so a failure part-way also leaves nothing changed. The
+alternative, "apply to the ones that can and skip the rest", is friendlier but
+leaves you guessing which were skipped.
+**Using it:** the first real use marked 71 applications ghosted. "Silent" was
+defined as applied, 21+ days with no change and no follow-up date; the two
+applications that had reached an assessment were left alone, because someone had
+replied. The ghost date is the day it was marked, not when the silence began
+(that moment is unknowable), and each event carries a note saying so. Ghosted is
+not final, so a late reply still moves it forward, and every one can be undone.
+A labelled `pre-cleanup` backup was taken first.

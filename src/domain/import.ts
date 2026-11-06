@@ -151,10 +151,13 @@ export function mapRow(row: SourceRow, columns: ColumnAliases, defaults: ImportD
   const statusWord = pick(f, columns.status).toLowerCase();
 
   let status: Status;
+  const extraNotes: string[] = [];
   if (statusWord === "") {
     status = appliedCell ? "applied" : "saved";
   } else {
-    const known = STATUS_WORDS[statusWord];
+    // "oa 2" / "interview 2": a numbered round of a known stage. The number has no field, so it is kept in the notes.
+    const known = STATUS_WORDS[statusWord] ?? STATUS_WORDS[statusWord.replace(/\s*\d+$/, "")];
+    if (known && STATUS_WORDS[statusWord] === undefined) extraNotes.push(`Notion status: ${pick(f, columns.status)}`);
     if (!known) {
       throw new ValidationError([{ field: "status", message: `unknown status "${pick(f, columns.status)}" (known: ${Object.keys(STATUS_WORDS).join(", ")})` }]);
     }
@@ -162,7 +165,7 @@ export function mapRow(row: SourceRow, columns: ColumnAliases, defaults: ImportD
   }
 
   // Notes keep everything that has no column of its own, so nothing is lost.
-  const notes: string[] = [];
+  const notes: string[] = [...extraNotes];
   const noteCell = pick(f, columns.notes);
   if (noteCell) notes.push(noteCell);
   if (opens) notes.push(`Opens: ${opens}`);

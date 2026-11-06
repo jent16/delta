@@ -17,7 +17,10 @@ const HINTS: Record<string, Sector> = {
   "susquehanna": "Finance", "d e shaw": "Finance", "goldman sachs": "Finance", "jpmorgan": "Finance",
   "jp morgan": "Finance", "morgan stanley": "Finance", "blackrock": "Finance", "capital one": "Finance",
   "fidelity": "Finance", "american express": "Finance", "amex": "Finance", "assured guaranty": "Finance",
-  "guardian life": "Finance",
+  "guardian life": "Finance", "j p morgan": "Finance", "sig": "Finance", "sig susquehanna": "Finance",
+  "susquehann": "Finance", "citadel citadel securities": "Finance", "deutsche": "Finance", "deutsche bank": "Finance",
+  "dv trading": "Finance", "five rings": "Finance", "tower research": "Finance", "tower research capital": "Finance",
+  "walleye capital": "Finance", "brevan howard": "Finance", "capstone investment advisors": "Finance",
   // software companies serving finance
   "stripe": "Fintech", "coinbase": "Fintech", "robinhood": "Fintech", "affirm": "Fintech", "plaid": "Fintech",
   "ramp": "Fintech", "brex": "Fintech", "block": "Fintech", "paypal": "Fintech", "chime": "Fintech",

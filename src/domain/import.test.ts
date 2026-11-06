@@ -26,6 +26,15 @@ test("matching is case- and space-insensitive, and an unknown status word is rep
   assert.throws(() => mapRow(row({ ...base, Status: "Maybe?" }), TRACKER_COLUMNS, SWE), (e) => e instanceof ValidationError && /unknown status "Maybe\?"/.test(e.message));
 });
 
+test("a numbered round of a known stage keeps the stage, and the number is kept in the notes", () => {
+  const m = mapRow(row({ ...base, Status: "OA 2", Applied: "2026-09-05" }), TRACKER_COLUMNS, SWE);
+  assert.equal(m.followUp?.status, "assessment");
+  assert.match(String(m.raw.notes), /Notion status: OA 2/);
+  assert.equal(mapRow(row({ ...base, Status: "interview 3", Applied: "2026-09-05" }), TRACKER_COLUMNS, SWE).followUp?.status, "interview");
+  assert.equal(String(mapRow(row({ ...base, Status: "Applied", Applied: "2026-09-05" }), TRACKER_COLUMNS, SWE).raw.notes), ""); // exact words add no note
+  assert.throws(() => mapRow(row({ ...base, Status: "banana 2" }), TRACKER_COLUMNS, SWE), ValidationError); // still not guessed
+});
+
 test("no status cell: an Applied date means applied, otherwise saved", () => {
   assert.equal(mapRow(row({ ...base, Applied: "2026-09-05" }), TRACKER_COLUMNS, SWE).raw.status, "applied");
   assert.equal(mapRow(row({ ...base }), TRACKER_COLUMNS, SWE).raw.status, "saved");
@@ -81,6 +90,9 @@ test("sector: an explicit default wins; otherwise a well-known company is guesse
 test("guessSector ignores case, punctuation and company suffixes; unknown names are null", () => {
   assert.equal(guessSector("  JANE STREET, Inc. "), "Finance");
   assert.equal(guessSector("D. E. Shaw"), "Finance");
+  assert.equal(guessSector("J.P. Morgan"), "Finance");
+  assert.equal(guessSector("SIG (Susquehanna)"), "Finance");
+  assert.equal(guessSector("Citadel / Citadel Securities"), "Finance");
   assert.equal(guessSector("Mom & Pop Shop"), null);
 });
 

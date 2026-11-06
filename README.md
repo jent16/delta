@@ -73,7 +73,8 @@ integration (database `···` menu → Connections).
 It expects the tracker layout the SWE database uses: `Company` (title), `Role/Program`,
 `Location`, `Link`, `Opens`, `Applied`, `Notes` and a `Status` select. Status
 words map as **Bookmarked → Saved, In process → Drafting, Applied → Applied,
-x → Rejected**. Column names are matched ignoring case, so the PM and Fintech
+x → Rejected** (a numbered round like "OA 2" keeps its stage, with the original
+words in the notes). Column names are matched ignoring case, so the PM and Fintech
 databases work if they follow the same layout.
 
 - **Safe to repeat.** A ledger remembers which row became which application.
@@ -82,14 +83,18 @@ databases work if they follow the same layout.
 - **Problems are reported, not guessed**: a row with no company or an unknown
   status is listed for you to fix in Notion (then re-run); duplicates are listed
   too, the older row wins.
+- **Order matters when trackers overlap.** An application can exist once
+  (company + role + term). If two trackers hold the same one, the first import
+  wins and the second reports it as a duplicate.
 - **Guesses are labelled**: a rejected row's date is the row's last edit; a
   sector is guessed only for well-known firms (Jane Street, Stripe, ...); a term
   like "(Summer 2027)" in a title fills the Term field.
 - The same thing is available over HTTP: `POST /api/import/notion/preview` and
   `/commit` with `{database, roleFunction, sector?}`.
 
-Roadmap: CSV/XLSX import → plain UI with company search → contacts and alumni
-helper → export/backup. Everything below this section is the original Delta.
+**Roadmap:** see [`docs/roadmap.md`](docs/roadmap.md) for the full pipeline (statuses,
+data flow, and the build steps: backup, UI, insights, contacts, then folding the
+original Delta back in). Everything below this section is the original Delta.
 
 ## Why
 

@@ -8,12 +8,15 @@ import { createBackup } from "./db/backup.ts";
 import type { BackupInfo } from "./db/backup.ts";
 import { openDatabase } from "./db/connection.ts";
 import { migrate } from "./db/migrate.ts";
+import { createSimplifyDirectory } from "./importers/simplify.ts";
 import { createNotionSource } from "./importers/notion.ts";
 import { createApplicationRepository } from "./repositories/applications.ts";
 import { createImportLedger } from "./repositories/import-ledger.ts";
 import { createListRepository } from "./repositories/lists.ts";
 import { createApplicationService } from "./services/applications.ts";
+import { createCompanyService } from "./services/companies.ts";
 import { createExportService } from "./services/export.ts";
+import { createInsightsService } from "./services/insights.ts";
 import { createImportService } from "./services/import.ts";
 import { createListService } from "./services/lists.ts";
 
@@ -48,5 +51,10 @@ export function composeTracker(opts: { dataDir: string; env?: NodeJS.ProcessEnv 
   });
   const listRepo = createListRepository(db);
   const exports = createExportService({ applications: applicationRepo, lists: listRepo, clock });
-  return { db, dbFile, backupDir, applications, lists, imports, exports, migrationsApplied, preMigrationBackup: preMigrationBackup as BackupInfo | null };
+  const companies = createCompanyService({
+    repo: applicationRepo,
+    directory: createSimplifyDirectory({ cacheFile: join(opts.dataDir, "cache", "companies.json") }),
+  });
+  const insights = createInsightsService({ applications: applicationRepo, lists: listRepo, clock });
+  return { db, dbFile, backupDir, applications, lists, imports, exports, companies, insights, migrationsApplied, preMigrationBackup: preMigrationBackup as BackupInfo | null };
 }

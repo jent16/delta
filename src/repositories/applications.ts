@@ -6,6 +6,7 @@
 import type { Application, ApplicationPatch, ApplicationQuery, NewApplication, StatusChange, StatusEvent } from "../domain/application.ts";
 import type { ApplicationRepository } from "../domain/ports.ts";
 import type { Db } from "../db/connection.ts";
+import type { ExportedApplication } from "../domain/export.ts";
 import type { RoleFunction, Sector } from "../domain/vocab.ts";
 import type { Status } from "../domain/status.ts";
 
@@ -109,6 +110,9 @@ function whereClause(userId: number, query: ApplicationQuery): { sql: string; pa
   anyOf("status", query.statuses);
   anyOf("role_function", query.roleFunctions);
   anyOf("sector", query.sectors);
+  // closed list in the domain (parseApplicationQuery), mapped to column names here — never request text in SQL
+  const MISSING_COLUMNS = { sector: "sector", term: "term", location: "location", url: "url" } as const;
+  for (const field of query.missing ?? []) where.push(`${MISSING_COLUMNS[field]} IS NULL`);
   if (query.q) {
     const like = `%${escapeLike(query.q)}%`;
     where.push("(company LIKE ? ESCAPE '\\' OR role_title LIKE ? ESCAPE '\\' OR location LIKE ? ESCAPE '\\' OR notes LIKE ? ESCAPE '\\')");
@@ -123,6 +127,22 @@ export function createApplicationRepository(db: Db): ApplicationRepository {
   const findById = (userId: number, id: number): Application | null => {
     const row = selectOne.get(id, userId) as AppRow | undefined;
     return row ? toApplication(row) : null;
+  };
+
+  const withHistory = (userId: number, query: ApplicationQuery): ExportedApplication[] => {
+    const { sql, params } = whereClause(userId, query);
+    const apps = (db.prepare(`SELECT * FROM applications WHERE ${sql} ORDER BY id`).all(...params) as AppRow[]).map(toApplication);
+    // one query for the user's events, grouped in memory, instead of one query per application
+    const events = db
+      .prepare("SELECT e.* FROM status_events e JOIN applications a ON a.id = e.application_id WHERE a.user_id = ? ORDER BY e.id")
+      .all(userId) as EventRow[];
+    const byApp = new Map<number, StatusEvent[]>();
+    for (const e of events) {
+      const list = byApp.get(e.application_id) ?? [];
+      list.push(toEvent(e));
+      byApp.set(e.application_id, list);
+    }
+    return apps.map((application) => ({ application, history: byApp.get(application.id) ?? [] }));
   };
 
   return {
@@ -215,18 +235,30 @@ export function createApplicationRepository(db: Db): ApplicationRepository {
     },
 
     exportAll(userId) {
-      const apps = (db.prepare("SELECT * FROM applications WHERE user_id = ? ORDER BY id").all(userId) as AppRow[]).map(toApplication);
-      // one query for all events, grouped in memory, instead of one query per application
-      const events = db
-        .prepare("SELECT e.* FROM status_events e JOIN applications a ON a.id = e.application_id WHERE a.user_id = ? ORDER BY e.id")
-        .all(userId) as EventRow[];
-      const byApp = new Map<number, StatusEvent[]>();
-      for (const e of events) {
-        const list = byApp.get(e.application_id) ?? [];
-        list.push(toEvent(e));
-        byApp.set(e.application_id, list);
+      return withHistory(userId, { includeArchived: true });
+    },
+
+    withHistory(userId, query) {
+      return withHistory(userId, query);
+    },
+
+    companyNames(userId) {
+      return db
+        .prepare("SELECT MIN(company) AS name, COUNT(*) AS count FROM applications WHERE user_id = ? AND archived_at IS NULL GROUP BY LOWER(TRIM(company)) ORDER BY count DESC, name")
+        .all(userId) as { name: string; count: number }[];
+    },
+
+    updateMany(userId, ids, patch, now) {
+      const sets: string[] = [];
+      const params: (string | number | null)[] = [];
+      for (const [key, value] of Object.entries(patch) as [keyof ApplicationPatch, string | null][]) {
+        sets.push(`${PATCH_COLUMNS[key]} = ?`); // column names come from the fixed PATCH_COLUMNS map, never from the request
+        params.push(value);
       }
-      return apps.map((application) => ({ application, history: byApp.get(application.id) ?? [] }));
+      if (!sets.length || !ids.length) return 0;
+      sets.push("updated_at = ?");
+      params.push(now, userId, ...ids);
+      return db.prepare(`UPDATE applications SET ${sets.join(", ")} WHERE user_id = ? AND id IN (${ids.map(() => "?").join(", ")})`).run(...params).changes;
     },
 
     archive(userId, id, now) {

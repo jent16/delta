@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DuplicateError, InvalidTransitionError, NotFoundError, ValidationError } from "../domain/errors.ts";
+import { createApplicationRepository } from "../repositories/applications.ts";
 import { makeTracker } from "../testing/harness.ts";
 
 const base = { company: "Stripe", roleTitle: "SWE Intern", term: "Summer 2027" };
@@ -130,4 +131,67 @@ test("not found", () => {
   const { service } = makeTracker();
   assert.throws(() => service.get(1, 999), NotFoundError);
   assert.throws(() => service.archive(1, 999), NotFoundError);
+});
+
+// ---- bulk edit ----
+
+test("editMany sets the same fields on many applications at once", () => {
+  const { service } = makeTracker();
+  const a = service.add(1, { company: "Jane Street", roleTitle: "SWE" });
+  const b = service.add(1, { company: "Citadel", roleTitle: "SWE" });
+  const c = service.add(1, { company: "Figma", roleTitle: "SWE" });
+  const r = service.editMany(1, { ids: [a.id, b.id], set: { sector: "Finance" } });
+  assert.equal(r.updated, 2);
+  assert.deepEqual(r.applications.map((x) => x.sector), ["Finance", "Finance"]);
+  assert.equal(service.get(1, c.id).application.sector, null); // not in the list: untouched
+});
+
+test("editMany is all-or-nothing: one unknown id changes nothing", () => {
+  const { service } = makeTracker();
+  const a = service.add(1, { company: "Jane Street", roleTitle: "SWE" });
+  assert.throws(() => service.editMany(1, { ids: [a.id, 999], set: { sector: "Finance" } }), (e) => e instanceof NotFoundError && /999/.test(e.message));
+  assert.equal(service.get(1, a.id).application.sector, null);
+});
+
+test("editMany cannot touch another user's applications, even when mixed with your own", () => {
+  const t = makeTracker();
+  t.db.prepare("INSERT INTO users (id, name, created_at) VALUES (2, 'Other', 'now')").run();
+  const mine = t.service.add(1, { company: "Mine", roleTitle: "SWE" });
+  const theirs = t.service.add(2, { company: "Theirs", roleTitle: "SWE" });
+  assert.throws(() => t.service.editMany(1, { ids: [mine.id, theirs.id], set: { sector: "Finance" } }), NotFoundError);
+  assert.equal(t.service.get(1, mine.id).application.sector, null);
+  assert.equal(t.service.get(2, theirs.id).application.sector, null);
+});
+
+test("editMany updates the 'last changed' time, and validation errors change nothing", () => {
+  const t = makeTracker();
+  const a = t.service.add(1, { company: "A", roleTitle: "SWE" });
+  t.advance(3);
+  assert.throws(() => t.service.editMany(1, { ids: [a.id], set: { company: "Hacked" } }), ValidationError);
+  t.service.editMany(1, { ids: [a.id], set: { roleFunction: "PM" } });
+  const after = t.service.get(1, a.id).application;
+  assert.equal(after.roleFunction, "PM");
+  assert.equal(after.company, "A");
+  assert.notEqual(after.updatedAt, a.updatedAt);
+});
+
+test("missing=sector finds what still needs classifying, and bulk edit then removes it from that view", () => {
+  const { service } = makeTracker();
+  const a = service.add(1, { company: "A", roleTitle: "SWE", sector: "Finance" });
+  const b = service.add(1, { company: "B", roleTitle: "SWE" });
+  assert.deepEqual(service.list(1, { missing: "sector" }).map((x) => x.id), [b.id]);
+  service.editMany(1, { ids: [b.id], set: { sector: "Fintech" } });
+  assert.deepEqual(service.list(1, { missing: "sector" }), []);
+  assert.equal(service.list(1, {}).length, 2);
+  void a;
+});
+
+test("the repository's bulk update enforces ownership itself, even if a service forgot to check", () => {
+  const t = makeTracker();
+  t.db.prepare("INSERT INTO users (id, name, created_at) VALUES (2, 'Other', 'now')").run();
+  const mine = t.service.add(1, { company: "Mine", roleTitle: "SWE" });
+  const repo = createApplicationRepository(t.db);
+  assert.equal(repo.updateMany(2, [mine.id], { sector: "Finance" }, "now"), 0);
+  assert.equal(t.service.get(1, mine.id).application.sector, null);
+  assert.equal(repo.updateMany(1, [], { sector: "Finance" }, "now"), 0); // nothing to do is not an error
 });

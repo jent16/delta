@@ -6,6 +6,7 @@
 // afterwards. The table is deliberately short and unambiguous: a missing entry
 // just leaves the sector blank, while a wrong one quietly mislabels your data.
 
+import { normalizeCompany } from "./company.ts";
 import type { Sector } from "./vocab.ts";
 
 // "Finance" = firms that are the market; "Fintech" = software serving it.
@@ -27,9 +28,6 @@ const HINTS: Record<string, Sector> = {
   "sofi": "Fintech", "klarna": "Fintech", "marqeta": "Fintech", "talos": "Fintech", "bloomberg": "Fintech",
 };
 
-const normalize = (company: string): string =>
-  company.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\b(inc|llc|ltd|corp|corporation|co)\b/g, "").replace(/\s+/g, " ").trim();
-
 export function guessSector(company: string): Sector | null {
-  return HINTS[normalize(company)] ?? null;
+  return HINTS[normalizeCompany(company)] ?? null;
 }

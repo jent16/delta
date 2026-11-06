@@ -25,6 +25,12 @@ export interface ApplicationRepository {
   archive(userId: number, id: number, now: string): boolean;
   /** Every application INCLUDING archived ones, each with its history, with no row cap. For exports. */
   exportAll(userId: number): ExportedApplication[];
+  /** Applications matching the query, each with its history, with no row cap. For stats and reminders. */
+  withHistory(userId: number, query: ApplicationQuery): ExportedApplication[];
+  /** Your distinct company names with how many (non-archived) applications use each. */
+  companyNames(userId: number): { name: string; count: number }[];
+  /** One atomic statement: changes the same fields on every listed application. Returns how many changed. */
+  updateMany(userId: number, ids: number[], patch: ApplicationPatch, now: string): number;
 }
 
 export interface ListRepository {
@@ -35,6 +41,11 @@ export interface ListRepository {
   all(userId: number): SavedList[];
   update(userId: number, id: number, patch: ListPatch, now: string): SavedList | null;
   remove(userId: number, id: number): boolean;
+}
+
+/** Companies that post internships — a source of names for the search box. */
+export interface CompanyDirectory {
+  names(): Promise<{ names: string[]; available: boolean; note?: string }>;
 }
 
 /** Remembers which source row became which application, so importing twice never duplicates. */

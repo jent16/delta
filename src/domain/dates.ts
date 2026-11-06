@@ -17,3 +17,18 @@ export function toIsoDate(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
+
+const toUtc = (iso: string): number => {
+  const [y, m, d] = iso.split("-").map(Number) as [number, number, number];
+  return Date.UTC(y, m - 1, d);
+};
+
+/** Whole days from `from` to `to` (negative if `to` is earlier). Both are YYYY-MM-DD. */
+export function daysBetween(from: string, to: string): number {
+  return Math.round((toUtc(to) - toUtc(from)) / 86_400_000);
+}
+
+export function addDays(iso: string, days: number): string {
+  const d = new Date(toUtc(iso) + days * 86_400_000);
+  return d.toISOString().slice(0, 10);
+}

@@ -54,6 +54,19 @@ elsewhere.
 | `POST /api/lists` | create one: `{name, filter: {statuses?, roleFunctions?, sectors?, includeArchived?}}` |
 | `GET /api/lists/:id/applications` | run the list; narrow it with `status`, `function`, `sector`, `q` |
 | `PATCH /api/lists/:id`, `DELETE /api/lists/:id` | rename / re-filter / delete (applications are never touched) |
+| `GET /api/applications?missing=sector` | what still needs filling in (`sector`, `term`, `location`, `url`); also works inside a list |
+| `POST /api/applications/bulk` | `{ids, set}`: change `sector`, `roleFunction`, `location`, `source`, `resumeVersion`, `followUpOn`, `deadlineOn` on many at once, all or nothing |
+| `GET /api/companies/search?q=` | type-ahead for quick-add: your own companies first, then Simplify's list, with "did you mean" for typos and a sector hint |
+| `GET /api/stats` | counts by status/function/sector, the funnel, response rate, median days to a response; `?list=<id>` or any application filter |
+| `GET /api/reminders` | follow-ups due, upcoming/missed deadlines, applications gone quiet; `?days=7&staleDays=21&list=<id>` |
+| `GET /api/export`, `/api/export.csv` | your data as a download |
+
+**What the numbers mean.** *Applied* = ever had an applied event. The funnel counts
+"reached at least this stage" (so Applied → Interview still counts as getting past
+the assessment). *Responded* = assessment, interview, offer or a rejection; silence
+(ghosted) and withdrawing are not responses. Rejection dates imported from Notion
+are approximate, which carries into "days to a response". *Stale* = applied or in
+progress, nothing changed for 21+ days, and no follow-up date set.
 
 ### Backups, restore and export
 

@@ -7,8 +7,10 @@ import express from "express";
 import type { ErrorRequestHandler, Request } from "express";
 import { DuplicateError, InvalidTransitionError, NotFoundError, SourceError, ValidationError } from "../domain/errors.ts";
 import type { ApplicationService } from "../services/applications.ts";
+import type { CompanyService } from "../services/companies.ts";
 import type { ExportService } from "../services/export.ts";
 import type { ImportService } from "../services/import.ts";
+import type { InsightsService } from "../services/insights.ts";
 import type { ListService } from "../services/lists.ts";
 
 export interface AppDeps {
@@ -16,6 +18,8 @@ export interface AppDeps {
   lists: ListService;
   imports: ImportService;
   exports: ExportService;
+  companies: CompanyService;
+  insights: InsightsService;
   /**
    * The one place "who is making this request" is decided. Today there is a
    * single local user. When login exists, this reads a session instead —
@@ -45,7 +49,7 @@ const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
 };
 
 export function createApp(deps: AppDeps) {
-  const { applications, lists, imports, exports: exporter, currentUserId } = deps;
+  const { applications, lists, imports, exports: exporter, companies, insights, currentUserId } = deps;
   const app = express();
   app.use(express.json());
 
@@ -57,6 +61,11 @@ export function createApp(deps: AppDeps) {
 
   app.get("/api/applications", (req, res) => {
     res.json({ applications: applications.list(currentUserId(req), req.query as Record<string, unknown>) });
+  });
+
+  // before the :id routes, so "bulk" is never read as an id
+  app.post("/api/applications/bulk", (req, res) => {
+    res.json(applications.editMany(currentUserId(req), req.body));
   });
 
   app.get("/api/applications/:id", (req, res) => {
@@ -115,6 +124,20 @@ export function createApp(deps: AppDeps) {
 
   app.post("/api/import/notion/commit", async (req, res) => {
     res.json(await imports.commit(currentUserId(req), req.body));
+  });
+
+  // --- company search, for the quick-add box ---
+  app.get("/api/companies/search", async (req, res) => {
+    res.json(await companies.search(currentUserId(req), req.query as Record<string, unknown>));
+  });
+
+  // --- how it's going, and what needs attention ---
+  app.get("/api/stats", (req, res) => {
+    res.json(insights.stats(currentUserId(req), req.query as Record<string, unknown>));
+  });
+
+  app.get("/api/reminders", (req, res) => {
+    res.json(insights.reminders(currentUserId(req), req.query as Record<string, unknown>));
   });
 
   // --- export: your data as a file you can open anywhere (not the backup; see db/backup.ts) ---

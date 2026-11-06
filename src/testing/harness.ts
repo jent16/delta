@@ -9,12 +9,15 @@ import { createApplicationRepository } from "../repositories/applications.ts";
 import { createImportLedger } from "../repositories/import-ledger.ts";
 import { createListRepository } from "../repositories/lists.ts";
 import { createApplicationService } from "../services/applications.ts";
+import { createCompanyService } from "../services/companies.ts";
 import { createExportService } from "../services/export.ts";
+import { createInsightsService } from "../services/insights.ts";
 import { createImportService } from "../services/import.ts";
+import type { CompanyDirectory } from "../domain/ports.ts";
 import type { SourceFactory } from "../services/import.ts";
 import { createListService } from "../services/lists.ts";
 
-export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0), sources?: SourceFactory) {
+export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0), sources?: SourceFactory, directory?: CompanyDirectory) {
   let current = startAt;
   const clock = () => current;
   const db = openDatabase(":memory:");
@@ -31,9 +34,13 @@ export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0), sources?:
   });
   const listRepo = createListRepository(db);
   const exports = createExportService({ applications: applicationRepo, lists: listRepo, clock });
+  const companies = createCompanyService({ repo: applicationRepo, directory: directory ?? { names: async () => ({ names: [], available: true }) } });
+  const insights = createInsightsService({ applications: applicationRepo, lists: listRepo, clock });
   return {
     db,
     service,
+    companies,
+    insights,
     lists,
     imports,
     exports,
@@ -45,9 +52,9 @@ export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0), sources?:
   };
 }
 
-export async function startApi(userId = 1, sources?: SourceFactory) {
-  const t = makeTracker(undefined, sources);
-  const app = createApp({ applications: t.service, lists: t.lists, imports: t.imports, exports: t.exports, currentUserId: () => userId });
+export async function startApi(userId = 1, sources?: SourceFactory, directory?: CompanyDirectory) {
+  const t = makeTracker(undefined, sources, directory);
+  const app = createApp({ applications: t.service, lists: t.lists, imports: t.imports, exports: t.exports, companies: t.companies, insights: t.insights, currentUserId: () => userId });
   const server = await new Promise<import("node:http").Server>((resolve) => {
     const s = app.listen(0, () => resolve(s));
   });

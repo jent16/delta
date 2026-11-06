@@ -132,3 +132,32 @@ test("export over HTTP: JSON and CSV, both as downloads", async (t) => {
   assert.match(csv.headers.get("content-disposition")!, /\.csv"/);
   assert.match(await csv.text(), /^id,company,role_title/);
 });
+
+test("3c over HTTP: company search, bulk edit, stats and reminders", async (t) => {
+  const api = await startApi(1, undefined, { names: async () => ({ names: ["Rippling", "Stripe Inc"], available: true }) });
+  t.after(() => api.close());
+  const a = await api.call("POST", "/api/applications", { company: "Jane Street", roleTitle: "SWE", appliedOn: "2026-09-01" });
+  const b = await api.call("POST", "/api/applications", { company: "Citadel", roleTitle: "SWE", appliedOn: "2026-09-02" });
+
+  const search = await api.call("GET", "/api/companies/search?q=ripling");
+  assert.equal(search.status, 200);
+  assert.deepEqual(search.body.suggestions.map((s: { name: string }) => s.name), ["Rippling"]);
+  assert.equal((await api.call("GET", "/api/companies/search")).status, 400);
+
+  // "bulk" must not be mistaken for an application id
+  const bulk = await api.call("POST", "/api/applications/bulk", { ids: [a.body.id, b.body.id], set: { sector: "Finance" } });
+  assert.equal(bulk.status, 200);
+  assert.equal(bulk.body.updated, 2);
+  assert.equal((await api.call("POST", "/api/applications/bulk", { ids: [a.body.id, 999], set: { sector: "Finance" } })).status, 404);
+  assert.equal((await api.call("POST", "/api/applications/bulk", { ids: [a.body.id], set: { company: "x" } })).status, 400);
+  assert.equal((await api.call("GET", "/api/applications?missing=sector")).body.applications.length, 0);
+
+  const stats = await api.call("GET", "/api/stats");
+  assert.deepEqual([stats.body.stats.total, stats.body.stats.funnel.applied, stats.body.stats.bySector], [2, 2, { Finance: 2 }]);
+  assert.equal((await api.call("GET", "/api/stats?list=999")).status, 404);
+
+  await api.call("PATCH", `/api/applications/${a.body.id}`, { followUpOn: "2026-09-10" });
+  const rem = await api.call("GET", "/api/reminders?days=3");
+  assert.equal(rem.body.reminders.followUps.length, 1);
+  assert.equal((await api.call("GET", "/api/reminders?days=-5")).status, 400);
+});

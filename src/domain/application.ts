@@ -62,8 +62,13 @@ export interface ApplicationQuery {
   roleFunctions?: RoleFunction[];
   sectors?: Sector[];
   q?: string;
+  /** Only applications where ALL of these fields are still empty — "what haven't I filled in yet?" */
+  missing?: MissingField[];
   includeArchived?: boolean;
 }
+
+export const MISSING_FIELDS = ["sector", "term", "location", "url"] as const;
+export type MissingField = (typeof MISSING_FIELDS)[number];
 
 // ---- validation: the boundary between untrusted input and the domain ------
 
@@ -266,9 +271,11 @@ export function parseApplicationQuery(raw: Record<string, unknown>): Application
   const statuses = checked("status", STATUSES);
   const roleFunctions = checked("function", ROLE_FUNCTIONS);
   const sectors = checked("sector", SECTORS);
+  const missing = checked("missing", MISSING_FIELDS);
   if (statuses) query.statuses = statuses;
   if (roleFunctions) query.roleFunctions = roleFunctions;
   if (sectors) query.sectors = sectors;
+  if (missing) query.missing = missing;
   if (typeof raw.q === "string" && raw.q.trim()) query.q = raw.q.trim();
   if (raw.includeArchived === "1" || raw.includeArchived === "true") query.includeArchived = true;
   if (issues.length) throw new ValidationError(issues);
@@ -285,4 +292,49 @@ const norm = (s: string | null) => (s ?? "").toLowerCase().replace(/\s+/g, " ").
  */
 export function dedupeKey(f: Pick<ApplicationFields, "company" | "roleTitle" | "term">): string {
   return [norm(f.company), norm(f.roleTitle), norm(f.term)].join("|");
+}
+
+
+/** Fields that are safe to change on many applications at once. Identity fields (company, role, term) are not: bulk-editing them could silently create duplicates. */
+export const BULK_FIELDS = ["sector", "roleFunction", "location", "source", "resumeVersion", "followUpOn", "deadlineOn"] as const;
+
+export interface BulkEdit {
+  ids: number[];
+  set: ApplicationPatch;
+}
+
+export const MAX_BULK = 500;
+
+export function parseBulkEdit(rawInput: unknown): BulkEdit {
+  const issues: ValidationIssue[] = [];
+  if (typeof rawInput !== "object" || rawInput === null || Array.isArray(rawInput)) {
+    throw new ValidationError([{ field: "(body)", message: "must be a JSON object" }]);
+  }
+  const body = rawInput as Record<string, unknown>;
+  for (const key of Object.keys(body)) if (key !== "ids" && key !== "set") issues.push({ field: key, message: "unknown field" });
+
+  let ids: number[] = [];
+  if (!Array.isArray(body.ids) || body.ids.length === 0) issues.push({ field: "ids", message: "must be a non-empty list of application ids" });
+  else if (body.ids.length > MAX_BULK) issues.push({ field: "ids", message: `at most ${MAX_BULK} at a time` });
+  else if (body.ids.some((x) => !Number.isInteger(x) || (x as number) < 1)) issues.push({ field: "ids", message: "every id must be a positive integer" });
+  else ids = [...new Set(body.ids as number[])];
+
+  let set: ApplicationPatch = {};
+  if (typeof body.set !== "object" || body.set === null || Array.isArray(body.set) || Object.keys(body.set).length === 0) {
+    issues.push({ field: "set", message: "must say which fields to change" });
+  } else {
+    const disallowed = Object.keys(body.set).filter((k) => !(BULK_FIELDS as readonly string[]).includes(k));
+    if (disallowed.length) {
+      issues.push({ field: "set", message: `cannot be changed in bulk: ${disallowed.join(", ")} (allowed: ${BULK_FIELDS.join(", ")})` });
+    } else {
+      try {
+        set = parseApplicationPatch(body.set);
+      } catch (e) {
+        if (!(e instanceof ValidationError)) throw e;
+        issues.push(...e.issues.map((i) => ({ field: `set.${i.field}`, message: i.message })));
+      }
+    }
+  }
+  if (issues.length) throw new ValidationError(issues);
+  return { ids, set };
 }

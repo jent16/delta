@@ -5,7 +5,7 @@ import { createApp } from "./api/app.ts";
 import { composeTracker } from "./compose.ts";
 import { backupIfStale } from "./db/backup.ts";
 
-const { db, backupDir, applications, lists, imports, exports, migrationsApplied, preMigrationBackup } = composeTracker({
+const { db, backupDir, applications, lists, imports, exports, companies, insights, migrationsApplied, preMigrationBackup } = composeTracker({
   dataDir: process.env.DELTA_DATA_DIR ?? join(process.cwd(), "var"),
 });
 if (preMigrationBackup) console.log(`backed up before migrating: ${preMigrationBackup.file}`);
@@ -24,6 +24,16 @@ const autoBackup = () => {
 autoBackup();
 setInterval(autoBackup, 6 * 3_600_000).unref();
 
-const app = createApp({ applications, lists, imports, exports, currentUserId: () => 1 });
+const app = createApp({ applications, lists, imports, exports, companies, insights, currentUserId: () => 1 });
 const port = Number(process.env.TRACKER_PORT) || 3001;
-app.listen(port, () => console.log(`Tracker API on http://localhost:${port}`));
+const server = app.listen(port, () => console.log(`Tracker API on http://localhost:${port}`));
+
+// Stopping the server (Ctrl+C) closes the database cleanly, which removes its -wal/-shm files.
+// Restore treats those files as "the server is running", so leaving them behind would cause false alarms.
+const shutdown = () => {
+  server.close();
+  db.close();
+  process.exit(0);
+};
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);

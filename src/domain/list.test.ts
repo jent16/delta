@@ -50,3 +50,7 @@ test("narrowQuery: an ad-hoc query cannot reveal archived rows the list hides", 
   assert.equal(narrowQuery({}, { includeArchived: true })!.includeArchived, undefined);
   assert.equal(narrowQuery({ includeArchived: true }, {})!.includeArchived, true);
 });
+
+test("narrowQuery keeps a 'missing' filter, so 'SWE roles with no sector yet' works", () => {
+  assert.deepEqual(narrowQuery({ roleFunctions: ["SWE"] }, { missing: ["sector"] }), { roleFunctions: ["SWE"], missing: ["sector"] });
+});

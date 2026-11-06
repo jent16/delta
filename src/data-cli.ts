@@ -28,10 +28,12 @@ function usage(): never {
   process.exit(2);
 }
 
+let cleanup = () => {};
 try {
   switch (command) {
     case "backup": {
       const t = composeTracker({ dataDir });
+      cleanup = () => t.db.close();
       const b = createBackup(t.db, t.backupDir, { label: flag("label") });
       pruneBackups(t.backupDir, 30);
       console.log(`Backed up ${b.applications} applications and ${b.statusEvents} status events (${kb(b.bytes)}), verified.\n  ${b.file}`);
@@ -39,7 +41,9 @@ try {
       break;
     }
     case "backups": {
-      const dir = composeTracker({ dataDir }).backupDir;
+      const t = composeTracker({ dataDir });
+      cleanup = () => t.db.close();
+      const dir = t.backupDir;
       const all = listBackups(dir);
       if (!all.length) console.log(`No backups in ${dir}. Run: npm run backup`);
       for (const b of all) console.log(`  ${b.name.padEnd(48)} ${kb(b.bytes).padStart(8)}   ${ago(b.createdAt)}${b.labelled ? "   (kept)" : ""}`);
@@ -50,6 +54,7 @@ try {
       const arg = rest.find((a, i) => !a.startsWith("--") && !(rest[i - 1]?.startsWith("--") && rest[i - 1] !== "--yes"));
       if (!arg) usage();
       const t = composeTracker({ dataDir });
+      cleanup = () => { try { t.db.close(); } catch { /* already closed below */ } };
       const file = isAbsolute(arg) || arg.includes("/") ? resolve(arg) : join(t.backupDir, arg);
       const info = inspectDatabase(file);
       if (!info.ok) throw new Error(`cannot restore: ${info.problem}`);
@@ -67,6 +72,7 @@ try {
     }
     case "export": {
       const t = composeTracker({ dataDir });
+      cleanup = () => t.db.close();
       const format = flag("format") ?? "json";
       if (format !== "json" && format !== "csv") usage();
       const { filename, body } = format === "csv" ? t.exports.csv(1) : t.exports.json(1);
@@ -81,5 +87,7 @@ try {
   }
 } catch (e) {
   console.error(e instanceof Error ? e.message : e);
-  process.exit(1);
+  process.exitCode = 1;
+} finally {
+  cleanup();
 }

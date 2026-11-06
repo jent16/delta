@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { dedupeKey, parseApplicationPatch, parseApplicationQuery, parseNewApplication, parseStatusChange } from "./application.ts";
+import { dedupeKey, parseApplicationPatch, parseApplicationQuery, parseNewApplication, parseStatusChange, parseBulkEdit } from "./application.ts";
 import { isIsoDate } from "./dates.ts";
 import { ValidationError } from "./errors.ts";
 
@@ -97,4 +97,38 @@ test("dedupeKey: same company+role+term collide regardless of case/spacing; a di
   assert.equal(k("Stripe", "SWE Intern", "Summer 2027"), k("  STRIPE ", "swe   intern", "summer 2027"));
   assert.notEqual(k("Stripe", "SWE Intern", "Summer 2027"), k("Stripe", "PM Intern", "Summer 2027"));
   assert.notEqual(k("Stripe", "SWE Intern", "Summer 2027"), k("Stripe", "SWE Intern", "Fall 2027"));
+});
+
+// ---- bulk edit and "missing" filter ----
+
+const bulkIssues = (raw: unknown): string[] => {
+  try { parseBulkEdit(raw); return []; } catch (e) { return (e as ValidationError).issues.map((i) => i.field).sort(); }
+};
+
+test("parseBulkEdit: ids are deduplicated and the change is validated like any edit", () => {
+  const b = parseBulkEdit({ ids: [3, 1, 3], set: { sector: "Finance", roleFunction: "SWE" } });
+  assert.deepEqual(b.ids, [3, 1]);
+  assert.deepEqual(b.set, { sector: "Finance", roleFunction: "SWE" });
+  assert.deepEqual(parseBulkEdit({ ids: [1], set: { sector: "" } }).set, { sector: null }); // blank clears the field
+});
+
+test("parseBulkEdit refuses identity fields (bulk-editing them could silently create duplicates) and notes (too easy to overwrite)", () => {
+  for (const field of ["company", "roleTitle", "term", "notes", "url", "status"]) {
+    assert.deepEqual(bulkIssues({ ids: [1], set: { [field]: "x" } }), ["set"], field);
+  }
+});
+
+test("parseBulkEdit rejects bad input, all problems at once", () => {
+  assert.deepEqual(bulkIssues({ ids: [], set: { sector: "Finance" } }), ["ids"]);
+  assert.deepEqual(bulkIssues({ ids: [1.5], set: { sector: "Finance" } }), ["ids"]);
+  assert.deepEqual(bulkIssues({ ids: Array.from({ length: 501 }, (_, i) => i + 1), set: { sector: "Finance" } }), ["ids"]);
+  assert.deepEqual(bulkIssues({ ids: [1], set: {} }), ["set"]);
+  assert.deepEqual(bulkIssues({ ids: [1], set: { sector: "Plumbing" } }), ["set.sector"]);
+  assert.deepEqual(bulkIssues({ ids: "1", set: { sector: "Finance" }, extra: 1 }), ["extra", "ids"]);
+  assert.deepEqual(bulkIssues("nope"), ["(body)"]);
+});
+
+test("parseApplicationQuery: missing= takes a closed list of fields", () => {
+  assert.deepEqual(parseApplicationQuery({ missing: "sector,term" }).missing, ["sector", "term"]);
+  assert.throws(() => parseApplicationQuery({ missing: "company" }), ValidationError);
 });

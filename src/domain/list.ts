@@ -138,6 +138,7 @@ export function narrowQuery(base: ListFilter, extra: ApplicationQuery): Applicat
     if (merged) (query as Record<string, unknown>)[key] = merged;
   }
   if (extra.q) query.q = extra.q;
+  if (extra.missing) query.missing = extra.missing; // narrows, like q
   // an ad-hoc query may not reveal archived rows the list itself hides
   if (base.includeArchived) query.includeArchived = true;
   return query;

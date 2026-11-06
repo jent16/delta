@@ -60,7 +60,7 @@ with its own rebuildable `delta.db`.
 | 2b | Drafting status (table rebuild, safe migration runner) | done |
 | 3 | Notion importer: preview, commit, idempotent. 130 applications imported | done |
 | 3b | Backup, verified restore, automatic backups, JSON/CSV export | done |
-| 3c | API for the UI: company search, bulk edit (sector), stats, overdue list | next |
+| 3c | API for the UI: company search, bulk edit, `missing=` filter, stats, reminders | done |
 | 4 | Plain UI: table, list sidebar, quick-add, status dropdown, detail + history | next |
 | 5 | Insights: funnel, response rate and time-in-stage per list | planned |
 | 6 | Contacts (many-to-many with applications) and alumni helper | planned |
@@ -74,10 +74,12 @@ with its own rebuildable `delta.db`.
   Verified snapshots (automatic, plus before migrations and imports), a cautious
   restore, and JSON/CSV export. Still worth doing: point `DELTA_BACKUP_DIR` at a
   synced folder so a backup survives losing the disk.
-- **3c API for the UI.** Company search from Simplify listings (including closed
-  ones, with free text as a fallback), set sector/function for many rows at once
-  (63+ imports have no sector), stats, and "overdue follow-ups". Built and
-  tested before any HTML, so the UI stays a thin skin.
+- **3c API for the UI (done).** Company search (your own companies, then Simplify's
+  list including closed postings, with "did you mean" for typos), bulk edit of
+  safe fields, a `missing=` filter, stats and reminders. Built and tested before
+  any HTML, so the UI stays a thin skin. Open follow-ups: a bulk *status* change
+  ("mark these 70 silent ones ghosted") and classifying the 86 applications that
+  still have no sector.
 - **4 UI.** Function before looks: table with filters, list sidebar, quick-add,
   status change with an undo, detail page with the dated history. Design inspo
   can come later because the API underneath won't change.
@@ -92,8 +94,9 @@ with its own rebuildable `delta.db`.
   and the security work the unauthenticated legacy endpoints currently prevent.
 
 ## 4. Known gaps (worth fixing, not yet scheduled)
-- 63+ imported applications have no sector, so they are invisible to
-  sector-based lists until set (step 3c).
+- 86 imported applications have no sector, so they are invisible to
+  sector-based lists until set. The tools exist (`missing=sector`, bulk edit);
+  it needs your call on which sector each company is.
 - Imported typos stay as written (e.g. company names); a company directory
   (step 3c/4) is how they get cleaned.
 - Duplicates inside Notion are skipped, not merged: give a re-application a term

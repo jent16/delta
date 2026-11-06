@@ -212,3 +212,46 @@ not interchangeable, and there is deliberately no "restore from export":
 that would be a second, weaker import path. CSV cells that start with `= + - @`
 are prefixed with an apostrophe, because a note pasted from a web page could
 otherwise run as a spreadsheet formula when the file is opened.
+
+## 26. Stats are pure functions over rows, with stated definitions
+`domain/stats.ts` takes applications plus their history and returns numbers; it
+never touches the database. The definitions are the real work, and they are
+written at the top of the file: "reached at least this stage" (a skipped
+assessment still counts as passed), "responded" (assessment, interview, offer or
+a rejection; silence and withdrawing are not responses), and a wait is
+first-applied to first-response with backdated oddities dropped. Rates are
+`null`, not 0%, when nothing has been applied to. Fetching all rows and counting
+in memory is fine at hundreds of rows; SQL aggregation is the move if that ever
+changes.
+
+## 27. Reminders are derived, never stored
+There is no reminders table to keep in sync. "Due", "overdue", "stale" and
+"missed deadline" are computed from the dates already on each application and
+today's date, so they are correct the moment you edit a date. The cost is no
+snooze or dismiss; that would need state, and belongs with a UI that can use it.
+
+## 28. Bulk edit allows only fields that can't cause collateral damage
+`company`, `roleTitle` and `term` define identity (the duplicate check), so
+changing them in bulk could silently merge or collide applications; `notes` is
+too easy to overwrite wholesale. The allowed set (sector, function, location,
+source, resume version, two dates) is a whitelist. It is also all-or-nothing:
+if any id isn't yours, nothing changes, and the update is one SQL statement.
+The repository checks ownership again on its own, because the service's check is
+one line of defence, not the only one.
+
+## 29. Company search is fuzzy only where fuzzy helps
+Typing "ripling" should find "Rippling" (one edit, a transposition counts as one),
+but loose fuzzy matching made "jane" suggest "Hamilton Lane" and "goog" suggest
+"Moog" in the first real run. Near-misses now require 5+ letters, the same first
+letter, comparison against the whole name or its first word only, and are
+dropped when there are already three real matches. Your own spelling always
+outranks the directory's, so a typo you made in Notion still finds itself.
+The directory is cached on disk and refreshed weekly; if a refresh fails the
+stale copy is used, and if there is none, search degrades to your own companies
+and says so instead of erroring.
+
+## 30. Close the database on exit
+A process that exits without closing a WAL-mode database leaves `-wal`/`-shm`
+files behind. Restore treats those as "the server is running", so the command
+line tools and the server (on Ctrl+C) now close the connection explicitly. A
+stale pair after a crash still gives a false alarm; that is the safe direction.

@@ -125,3 +125,13 @@ test("the repository enforces ownership itself, even if a service forgot to chec
   assert.equal(repo.update(2, mine.id, { name: "hacked" }, "now"), null);
   assert.equal(byName(t, "SWE").id, mine.id); // untouched
 });
+
+test("inside a list, missing=sector shows only what still needs classifying", () => {
+  const t = makeTracker();
+  t.service.add(1, { company: "Classified Co", roleTitle: "SWE", roleFunction: "SWE", sector: "Finance" });
+  t.service.add(1, { company: "Unclassified Co", roleTitle: "SWE", roleFunction: "SWE" });
+  t.service.add(1, { company: "Some PM Co", roleTitle: "PM", roleFunction: "PM" }); // unclassified, but not in the SWE list
+  const swe = byName(t, "SWE").id;
+  assert.deepEqual(companies(t.lists.applications(1, swe, { missing: "sector" })), ["Unclassified Co"]);
+  assert.equal(t.lists.applications(1, swe, {}).applications.length, 2);
+});

@@ -21,7 +21,8 @@ HTTP request
                  are legal, what valid input looks like. Pure functions and types.
                  No database, no Express, no file system.
 
- importers/      adapters to outside systems (Notion today). They fetch and flatten
+ importers/      adapters to outside systems (Notion rows to import, Simplify's
+                 company list for search). They fetch and flatten
                  rows into the domain's SourceRow and know nothing else.
 
  repositories/   the only place SQL exists. Implements the *port* declared in

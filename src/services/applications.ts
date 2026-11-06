@@ -7,7 +7,7 @@
 // imported. That one habit is what makes this layer testable: a test hands in
 // an in-memory database and a frozen clock.
 
-import { dedupeKey, parseApplicationPatch, parseApplicationQuery, parseNewApplication, parseStatusChange } from "../domain/application.ts";
+import { dedupeKey, parseApplicationPatch, parseBulkEdit, parseApplicationQuery, parseNewApplication, parseStatusChange } from "../domain/application.ts";
 import type { Application, StatusEvent } from "../domain/application.ts";
 import { toIsoDate } from "../domain/dates.ts";
 import { DuplicateError, InvalidTransitionError, NotFoundError, ValidationError } from "../domain/errors.ts";
@@ -24,6 +24,8 @@ export interface ApplicationService {
   changeStatus(userId: number, id: number, raw: unknown): Application;
   undoStatusChange(userId: number, id: number): Application;
   archive(userId: number, id: number): void;
+  /** Changes the same safe fields on many applications, all or nothing. */
+  editMany(userId: number, raw: unknown): { updated: number; applications: Application[] };
 }
 
 export function createApplicationService(deps: { repo: ApplicationRepository; clock: Clock }): ApplicationService {
@@ -92,6 +94,15 @@ export function createApplicationService(deps: { repo: ApplicationRepository; cl
     archive(userId, id) {
       mustFind(userId, id);
       repo.archive(userId, id, now());
+    },
+
+    editMany(userId, raw) {
+      const { ids, set } = parseBulkEdit(raw);
+      // all or nothing: if any id isn't yours (or doesn't exist), nothing is changed
+      const missing = ids.filter((id) => !repo.findById(userId, id));
+      if (missing.length) throw new NotFoundError(`application(s) ${missing.join(", ")}`);
+      const updated = repo.updateMany(userId, ids, set, now());
+      return { updated, applications: ids.map((id) => repo.findById(userId, id) as Application) };
     },
   };
 }

@@ -51,5 +51,7 @@ try {
 } catch (e) {
   if (e instanceof ValidationError) console.error(e.issues.map((i) => `${i.field}: ${i.message}`).join("\n"));
   else console.error(e instanceof Error ? e.message : e);
-  process.exit(1);
+  process.exitCode = 1;
+} finally {
+  db.close(); // closing the last connection removes the -wal/-shm files; leaving them looks like "server running" to restore
 }

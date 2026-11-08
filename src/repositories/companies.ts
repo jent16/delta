@@ -52,9 +52,9 @@ export function ensureCompany(db: Db, userId: number, name: string, sector: stri
   return Number(res.lastInsertRowid);
 }
 
-/** Removes a company nothing refers to any more (not even an archived application). */
+/** Removes a company nothing refers to any more (not an application, even archived, and not a contact). */
 export function dropIfUnused(db: Db, companyId: number): void {
-  db.prepare("DELETE FROM companies WHERE id = ? AND NOT EXISTS (SELECT 1 FROM applications WHERE company_id = companies.id)").run(companyId);
+  db.prepare("DELETE FROM companies WHERE id = ? AND NOT EXISTS (SELECT 1 FROM applications WHERE company_id = companies.id) AND NOT EXISTS (SELECT 1 FROM contacts WHERE company_id = companies.id)").run(companyId);
 }
 
 export function createCompanyRepository(db: Db): CompanyRepository {
@@ -113,6 +113,7 @@ export function createCompanyRepository(db: Db): CompanyRepository {
       let moved = 0;
       db.transaction(() => {
         moved = db.prepare("UPDATE applications SET company_id = ?, updated_at = ? WHERE company_id = ? AND user_id = ?").run(intoId, now, fromId, userId).changes;
+        db.prepare("UPDATE contacts SET company_id = ?, updated_at = ? WHERE company_id = ? AND user_id = ?").run(intoId, now, fromId, userId); // the people come along
         rekey(intoId, into.name);
         // keep a sector that only the merged-away company had
         if (into.sector === null && from.sector !== null) db.prepare("UPDATE companies SET sector = ?, updated_at = ? WHERE id = ?").run(from.sector, now, intoId);

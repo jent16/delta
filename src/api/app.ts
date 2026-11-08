@@ -8,6 +8,7 @@ import type { ErrorRequestHandler, Request } from "express";
 import { CompanyExistsError, DuplicateError, InvalidTransitionError, NotFoundError, SourceError, ValidationError } from "../domain/errors.ts";
 import type { ApplicationService } from "../services/applications.ts";
 import type { CompanyService } from "../services/companies.ts";
+import type { ContactService, SettingsService } from "../services/contacts.ts";
 import type { ExportService } from "../services/export.ts";
 import type { ImportService } from "../services/import.ts";
 import type { InsightsService } from "../services/insights.ts";
@@ -20,6 +21,8 @@ export interface AppDeps {
   imports: ImportService;
   exports: ExportService;
   companies: CompanyService;
+  contacts: ContactService;
+  settings: SettingsService;
   insights: InsightsService;
   /**
    * The one place "who is making this request" is decided. Today there is a
@@ -53,7 +56,7 @@ const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
 };
 
 export function createApp(deps: AppDeps) {
-  const { applications, lists, imports, exports: exporter, companies, insights, currentUserId, webRoot } = deps;
+  const { applications, lists, imports, exports: exporter, companies, contacts, settings, insights, currentUserId, webRoot } = deps;
   const app = express();
   app.use(express.json());
 
@@ -79,6 +82,11 @@ export function createApp(deps: AppDeps) {
     res.json(applications.changeStatusMany(currentUserId(req), req.body));
   });
 
+  // the people linked to an application, other people at its company, and the alumni search links
+  app.get("/api/applications/:id/contacts", (req, res) => {
+    res.json(contacts.forApplication(currentUserId(req), idParam(req)));
+  });
+
   app.get("/api/applications/:id", (req, res) => {
     res.json(applications.get(currentUserId(req), idParam(req)));
   });
@@ -99,6 +107,53 @@ export function createApp(deps: AppDeps) {
   app.delete("/api/applications/:id", (req, res) => {
     applications.archive(currentUserId(req), idParam(req));
     res.status(204).end();
+  });
+
+  // --- people: contacts, the log of what you did with them, and their links to applications ---
+  app.get("/api/contacts", (req, res) => {
+    res.json({ contacts: contacts.list(currentUserId(req), req.query as Record<string, unknown>) });
+  });
+
+  app.post("/api/contacts", (req, res) => {
+    res.status(201).json(contacts.add(currentUserId(req), req.body));
+  });
+
+  app.get("/api/contacts/:id", (req, res) => {
+    res.json(contacts.get(currentUserId(req), idParam(req)));
+  });
+
+  app.patch("/api/contacts/:id", (req, res) => {
+    res.json(contacts.edit(currentUserId(req), idParam(req), req.body));
+  });
+
+  // permanent: it removes a person, their log and their links (unlike applications, which archive)
+  app.delete("/api/contacts/:id", (req, res) => {
+    contacts.remove(currentUserId(req), idParam(req));
+    res.status(204).end();
+  });
+
+  app.post("/api/contacts/:id/events", (req, res) => {
+    res.status(201).json(contacts.addEvent(currentUserId(req), idParam(req), req.body));
+  });
+
+  app.post("/api/contacts/:id/links", (req, res) => {
+    res.json({ people: contacts.link(currentUserId(req), idParam(req), req.body) });
+  });
+
+  app.delete("/api/contacts/:id/links/:applicationId", (req, res) => {
+    const applicationId = Number(req.params.applicationId);
+    if (!Number.isInteger(applicationId) || applicationId < 1) throw new ValidationError([{ field: "applicationId", message: "must be a positive integer" }]);
+    contacts.unlink(currentUserId(req), idParam(req), applicationId);
+    res.status(204).end();
+  });
+
+  // --- preferences (today: the school the alumni helper searches for) ---
+  app.get("/api/settings", (req, res) => {
+    res.json(settings.get(currentUserId(req)));
+  });
+
+  app.patch("/api/settings", (req, res) => {
+    res.json(settings.edit(currentUserId(req), req.body));
   });
 
   // --- saved lists (filters over the applications table) ---

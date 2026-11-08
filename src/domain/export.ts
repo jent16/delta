@@ -6,6 +6,7 @@
 
 import type { Application, StatusEvent } from "./application.ts";
 import type { CompanySummary } from "./company-record.ts";
+import type { Contact, ContactEvent, LinkedApplication } from "./contact.ts";
 import type { SavedList } from "./list.ts";
 
 export interface ExportedApplication {
@@ -15,13 +16,26 @@ export interface ExportedApplication {
 }
 
 // version 2: adds `companies` (each company's name and sector, stored once) and `companyId` on every application
-export const EXPORT_VERSION = 2;
+// version 3: adds `contacts` (people, with their dated log and the applications they are linked to)
+export const EXPORT_VERSION = 3;
 
-export function buildJsonExport(exportedAt: string, rows: ExportedApplication[], lists: SavedList[], companies: CompanySummary[] = []) {
+export interface ExportedContact {
+  contact: Contact;
+  events: ContactEvent[];
+  links: LinkedApplication[];
+}
+
+export function buildJsonExport(exportedAt: string, rows: ExportedApplication[], lists: SavedList[], companies: CompanySummary[] = [], contacts: ExportedContact[] = []) {
   return {
     version: EXPORT_VERSION,
     exportedAt,
     companies: companies.map((c) => ({ id: c.id, name: c.name, sector: c.sector })),
+    contacts: contacts.map(({ contact: p, events, links }) => ({
+      id: p.id, name: p.name, companyId: p.companyId, company: p.company, title: p.title, email: p.email, linkedinUrl: p.linkedinUrl,
+      relationship: p.relationship, notes: p.notes, followUpOn: p.followUpOn, createdAt: p.createdAt,
+      log: events.map((e) => ({ kind: e.kind, on: e.occurredOn, note: e.note })),
+      applications: links.map((l) => ({ applicationId: l.applicationId, role: l.role })),
+    })),
     applications: rows.map(({ application: a, history }) => ({
       id: a.id,
       companyId: a.companyId,

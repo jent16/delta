@@ -12,7 +12,7 @@ import { makeTracker } from "../testing/harness.ts";
 
 async function serve(webRoot: string | undefined) {
   const t = makeTracker();
-  const app = createApp({ applications: t.service, lists: t.lists, imports: t.imports, exports: t.exports, companies: t.companies, insights: t.insights, currentUserId: () => 1, webRoot });
+  const app = createApp({ applications: t.service, lists: t.lists, imports: t.imports, exports: t.exports, companies: t.companies, contacts: t.contacts, settings: t.settings, insights: t.insights, currentUserId: () => 1, webRoot });
   const server = await new Promise<import("node:http").Server>((resolve) => { const s = app.listen(0, () => resolve(s)); });
   const base = `http://localhost:${(server.address() as AddressInfo).port}`;
   return { base, close: () => new Promise<void>((r) => server.close(() => r())) };

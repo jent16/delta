@@ -12,10 +12,13 @@ import { createSimplifyDirectory } from "./importers/simplify.ts";
 import { createNotionSource } from "./importers/notion.ts";
 import { createApplicationRepository } from "./repositories/applications.ts";
 import { createCompanyRepository } from "./repositories/companies.ts";
+import { createContactRepository } from "./repositories/contacts.ts";
+import { createSettingsRepository } from "./repositories/settings.ts";
 import { createImportLedger } from "./repositories/import-ledger.ts";
 import { createListRepository } from "./repositories/lists.ts";
 import { createApplicationService } from "./services/applications.ts";
 import { createCompanyService } from "./services/companies.ts";
+import { createContactService, createSettingsService } from "./services/contacts.ts";
 import { createExportService } from "./services/export.ts";
 import { createInsightsService } from "./services/insights.ts";
 import { createImportService } from "./services/import.ts";
@@ -52,12 +55,15 @@ export function composeTracker(opts: { dataDir: string; env?: NodeJS.ProcessEnv 
   });
   const listRepo = createListRepository(db);
   const companyRepo = createCompanyRepository(db);
-  const exports = createExportService({ applications: applicationRepo, lists: listRepo, companies: companyRepo, clock });
+  const contactRepo = createContactRepository(db);
+  const settings = createSettingsService({ settings: createSettingsRepository(db) });
+  const contacts = createContactService({ contacts: contactRepo, applications: applicationRepo, settings, clock });
+  const exports = createExportService({ applications: applicationRepo, lists: listRepo, companies: companyRepo, contacts: contactRepo, clock });
   const companies = createCompanyService({
     companies: companyRepo,
     clock,
     directory: createSimplifyDirectory({ cacheFile: join(opts.dataDir, "cache", "companies.json") }),
   });
-  const insights = createInsightsService({ applications: applicationRepo, lists: listRepo, clock });
-  return { db, dbFile, backupDir, applications, lists, imports, exports, companies, insights, migrationsApplied, preMigrationBackup: preMigrationBackup as BackupInfo | null };
+  const insights = createInsightsService({ applications: applicationRepo, lists: listRepo, contacts: contactRepo, clock });
+  return { db, dbFile, backupDir, applications, lists, imports, exports, companies, contacts, settings, insights, migrationsApplied, preMigrationBackup: preMigrationBackup as BackupInfo | null };
 }

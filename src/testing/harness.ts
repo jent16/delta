@@ -7,10 +7,13 @@ import { openDatabase } from "../db/connection.ts";
 import { migrate } from "../db/migrate.ts";
 import { createApplicationRepository } from "../repositories/applications.ts";
 import { createCompanyRepository } from "../repositories/companies.ts";
+import { createContactRepository } from "../repositories/contacts.ts";
+import { createSettingsRepository } from "../repositories/settings.ts";
 import { createImportLedger } from "../repositories/import-ledger.ts";
 import { createListRepository } from "../repositories/lists.ts";
 import { createApplicationService } from "../services/applications.ts";
 import { createCompanyService } from "../services/companies.ts";
+import { createContactService, createSettingsService } from "../services/contacts.ts";
 import { createExportService } from "../services/export.ts";
 import { createInsightsService } from "../services/insights.ts";
 import { createImportService } from "../services/import.ts";
@@ -35,13 +38,19 @@ export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0), sources?:
   });
   const listRepo = createListRepository(db);
   const companyRepo = createCompanyRepository(db);
-  const exports = createExportService({ applications: applicationRepo, lists: listRepo, companies: companyRepo, clock });
+  const contactRepo = createContactRepository(db);
+  const settings = createSettingsService({ settings: createSettingsRepository(db) });
+  const contacts = createContactService({ contacts: contactRepo, applications: applicationRepo, settings, clock });
+  const exports = createExportService({ applications: applicationRepo, lists: listRepo, companies: companyRepo, contacts: contactRepo, clock });
   const companies = createCompanyService({ companies: companyRepo, clock, directory: directory ?? { names: async () => ({ names: [], available: true }) } });
-  const insights = createInsightsService({ applications: applicationRepo, lists: listRepo, clock });
+  const insights = createInsightsService({ applications: applicationRepo, lists: listRepo, contacts: contactRepo, clock });
   return {
     db,
     service,
     companyRepo,
+    contactRepo,
+    contacts,
+    settings,
     companies,
     insights,
     lists,
@@ -57,7 +66,7 @@ export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0), sources?:
 
 export async function startApi(userId = 1, sources?: SourceFactory, directory?: CompanyDirectory) {
   const t = makeTracker(undefined, sources, directory);
-  const app = createApp({ applications: t.service, lists: t.lists, imports: t.imports, exports: t.exports, companies: t.companies, insights: t.insights, currentUserId: () => userId });
+  const app = createApp({ applications: t.service, lists: t.lists, imports: t.imports, exports: t.exports, companies: t.companies, contacts: t.contacts, settings: t.settings, insights: t.insights, currentUserId: () => userId });
   const server = await new Promise<import("node:http").Server>((resolve) => {
     const s = app.listen(0, () => resolve(s));
   });

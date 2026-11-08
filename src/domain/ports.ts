@@ -6,6 +6,7 @@
 
 import type { Application, ApplicationFields, ApplicationPatch, ApplicationQuery, NewApplication, StatusChange, StatusEvent } from "./application.ts";
 import type { CompanySummary } from "./company-record.ts";
+import type { Contact, ContactEvent, ContactFields, ContactPatch, ContactQuery, ContactSummary, LinkedApplication, LinkedContact, LinkRole, NewContactEvent } from "./contact.ts";
 import type { ExportedApplication } from "./export.ts";
 import type { ListFilter, ListPatch, NewList, SavedList } from "./list.ts";
 
@@ -48,6 +49,34 @@ export interface CompanyRepository {
   mergeConflicts(userId: number, fromId: number, intoId: number): string[];
   /** Moves every application of `fromId` to `intoId` and removes `fromId`, atomically. */
   merge(userId: number, fromId: number, intoId: number, now: string): { company: CompanySummary; moved: number } | null;
+}
+
+/** People you know at companies, their links to applications, and the dated log of what you did with them. */
+export interface ContactRepository {
+  /** Creates the contact (and its company by name, in the same transaction, if one is given). */
+  insert(userId: number, fields: ContactFields, now: string): Contact;
+  findById(userId: number, id: number): Contact | null;
+  list(userId: number, query: ContactQuery): ContactSummary[];
+  /** Applies the patch. A `company` name moves the contact to that company (created if new); null clears it. */
+  update(userId: number, id: number, patch: ContactPatch, now: string): Contact | null;
+  /** Permanently deletes the person, their log and their links. */
+  remove(userId: number, id: number): boolean;
+  events(userId: number, id: number): ContactEvent[];
+  addEvent(userId: number, id: number, event: NewContactEvent, now: string): ContactEvent | null;
+  /** Links the person to an application (both must be this user's); linking again changes the role. */
+  link(userId: number, contactId: number, applicationId: number, role: LinkRole, now: string): boolean;
+  unlink(userId: number, contactId: number, applicationId: number): boolean;
+  forApplication(userId: number, applicationId: number): LinkedContact[];
+  applicationsOf(userId: number, contactId: number): LinkedApplication[];
+  /** Everything for the data export, with each person's log and links. */
+  exportAll(userId: number): { contact: Contact; events: ContactEvent[]; links: LinkedApplication[] }[];
+}
+
+/** One user's preferences, stored as key/value rows. */
+export interface SettingsRepository {
+  all(userId: number): Record<string, string>;
+  /** A null value removes the row, so the default applies again. */
+  set(userId: number, key: string, value: string | null): void;
 }
 
 export interface ListRepository {

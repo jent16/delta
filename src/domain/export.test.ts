@@ -44,7 +44,7 @@ test("the JSON export carries every field, the history, and the lists", () => {
   const j = buildJsonExport("2026-11-05T00:00:00Z", [{ application: app({ archivedAt: "x" }), history: [ev("applied", "2026-09-05")] }], [
     { id: 1, userId: 1, name: "SWE", filter: { roleFunctions: ["SWE"] }, createdAt: "t", updatedAt: "t" },
   ], [{ id: 7, userId: 1, name: "Stripe", sector: "Fintech", createdAt: "t", updatedAt: "t", applications: 1, totalApplications: 1 }]);
-  assert.equal(j.version, 2);
+  assert.equal(j.version, 3);
   assert.deepEqual(j.companies, [{ id: 7, name: "Stripe", sector: "Fintech" }]); // the sector is stored once, here
   assert.equal(j.applications[0]!.companyId, 7);
   assert.deepEqual(j.applications[0]!.history, [{ status: "applied", on: "2026-09-05", note: null }]);

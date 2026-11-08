@@ -282,3 +282,61 @@ test("GET /api/breakdowns returns the tables, the sample threshold and stage tim
   assert.deepEqual((await api.call("GET", `/api/breakdowns?list=${pm.id}`)).body.breakdowns.function.map((x: { key: string }) => x.key), ["PM"]);
   assert.equal((await api.call("GET", "/api/breakdowns?list=abc")).status, 400);
 });
+
+test("people over HTTP: add, list, edit, log, link to an application, alumni links, settings, delete", async (t) => {
+  const api = await startApi();
+  t.after(() => api.close());
+  const app = (await api.call("POST", "/api/applications", { company: "Stripe", roleTitle: "SWE" })).body;
+  const created = await api.call("POST", "/api/contacts", { name: "Priya Shah", company: "Stripe", relationship: "alumni", linkedinUrl: "https://www.linkedin.com/in/priya" });
+  assert.equal(created.status, 201);
+  const id = created.body.id;
+  assert.deepEqual([created.body.company, created.body.companyId], ["Stripe", app.companyId]);
+
+  assert.deepEqual((await api.call("GET", "/api/contacts?q=priya")).body.contacts.map((c: { name: string; applications: number; lastEventOn: null }) => [c.name, c.applications, c.lastEventOn]), [["Priya Shah", 0, null]]);
+  assert.equal((await api.call("PATCH", `/api/contacts/${id}`, { title: "Engineer", followUpOn: "2026-09-20" })).body.title, "Engineer");
+
+  assert.equal((await api.call("POST", `/api/contacts/${id}/events`, { kind: "messaged", note: "intro" })).status, 201);
+  const link = await api.call("POST", `/api/contacts/${id}/links`, { applicationId: app.id, role: "referrer" });
+  assert.deepEqual(link.body.people.map((p: { contact: { name: string }; role: string }) => [p.contact.name, p.role]), [["Priya Shah", "referrer"]]);
+
+  const detail = (await api.call("GET", `/api/contacts/${id}`)).body;
+  assert.deepEqual([detail.events.length, detail.applications.length, detail.alumni.length], [1, 1, 3]);
+  const panel = (await api.call("GET", `/api/applications/${app.id}/contacts`)).body;
+  assert.deepEqual([panel.people.length, panel.atCompany.length, panel.alumni[0].url.startsWith("https://www.linkedin.com/search/results/people/?keywords=")], [1, 0, true]);
+
+  assert.equal((await api.call("PATCH", "/api/settings", { school: "University of Waterloo" })).body.school, "University of Waterloo");
+  assert.match((await api.call("GET", `/api/applications/${app.id}/contacts`)).body.alumni[0].label, /^University of Waterloo/);
+  assert.equal((await api.call("GET", "/api/settings")).body.school, "University of Waterloo");
+
+  assert.equal((await api.call("DELETE", `/api/contacts/${id}/links/${app.id}`)).status, 204);
+  assert.equal((await api.call("DELETE", `/api/contacts/${id}`)).status, 204);
+  assert.equal((await api.call("GET", `/api/contacts/${id}`)).status, 404);
+  assert.equal((await api.call("GET", "/api/applications")).body.applications.length, 1); // the application is untouched
+});
+
+test("people: bad input is a 400, unknown ids a 404, and a dangerous profile link is refused", async (t) => {
+  const api = await startApi();
+  t.after(() => api.close());
+  assert.equal((await api.call("POST", "/api/contacts", {})).status, 400);
+  const bad = await api.call("POST", "/api/contacts", { name: "A", linkedinUrl: "javascript:alert(1)" });
+  assert.equal(bad.status, 400);
+  assert.deepEqual(bad.body.issues.map((i: { field: string }) => i.field), ["linkedinUrl"]);
+  assert.equal((await api.call("POST", "/api/contacts", { name: "A", email: "nope" })).status, 400);
+  assert.equal((await api.call("GET", "/api/contacts/999")).status, 404);
+  assert.equal((await api.call("GET", "/api/contacts/abc")).status, 400);
+  assert.equal((await api.call("GET", "/api/contacts?relationship=boss")).status, 400);
+  assert.equal((await api.call("GET", "/api/applications/999/contacts")).status, 404);
+  const p = (await api.call("POST", "/api/contacts", { name: "A" })).body;
+  assert.equal((await api.call("POST", `/api/contacts/${p.id}/links`, { applicationId: 999 })).status, 404);
+  assert.equal((await api.call("POST", `/api/contacts/${p.id}/events`, { kind: "yelled" })).status, 400);
+  assert.equal((await api.call("DELETE", `/api/contacts/${p.id}/links/abc`)).status, 400);
+  assert.equal((await api.call("PATCH", "/api/settings", { theme: "x" })).status, 400);
+});
+
+test("GET /api/reminders includes the people to follow up with", async (t) => {
+  const api = await startApi();
+  t.after(() => api.close());
+  await api.call("POST", "/api/contacts", { name: "Overdue", followUpOn: "2026-09-10" });
+  const r = (await api.call("GET", "/api/reminders")).body.reminders;
+  assert.deepEqual(r.contactFollowUps.map((x: { contact: { name: string }; daysOverdue: number }) => [x.contact.name, x.daysOverdue]), [["Overdue", 5]]);
+});

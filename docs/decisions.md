@@ -481,3 +481,19 @@ and removing a name leaves them alone.
 
 Deliberately not done yet: email verification and password reset (both need to send email), limits by
 network address, and https. They matter when the app is hosted, not while it listens on `localhost`.
+
+## 43. No default school, and the old Delta is kept but parked
+**People searches don't assume a school.** The alumni helper used to fall back to Simon Fraser University
+for anyone who had not set one. That is wrong for everyone who isn't at SFU, and pointless when you search
+for people who happen to work at a company, whatever school they went to. So the default is now none: with a
+school set, the links look for that school's alumni at the company; with none, they look for anyone at the
+company ("People at Stripe on LinkedIn", the same on Google) plus recruiters there. A person added from a pasted
+link is marked "alumni" only if a school is set, otherwise "other". Migration 0009 writes the old default down
+for anyone who already had applications (today, only you), so nothing changes for existing data; a brand-new
+database starts with no school.
+
+**The old Delta stays, untouched, and is not part of what gets hosted.** Whether the skill-gap analyzer
+(Adzuna ingestion, resume scoring, Find Openings, the one-way Notion push) is still wanted is undecided, so it
+is neither removed nor wired in. It lives in `lib/`, `scripts/` and `server.js` with its own database. Its
+endpoints have no login and some spend paid API credits, so only `src/main.ts` is ever deployed
+(see `hosting.md`). Revisit when step 7 is picked up: either fold it in behind the same sign-in, or delete it.

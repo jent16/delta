@@ -64,10 +64,10 @@ with its own rebuildable `delta.db`.
 | 4 | Web UI: dashboard, applications table, quick-add with company search, detail panel, reminders, light/dark and selectable designs | done (first version) |
 | 5 | Insights: replies by role/sector/source/resume, time in each stage, with sample sizes | done (first version) |
 | 6 | Contacts (many-to-many with applications), a dated log, follow-up reminders, and the alumni helper | done; LinkedIn connections import done for people at companies you have (option C, "you know 3 people at Jane Street" suggestions for the rest, is next) |
-| 7 | Bring the old Delta in: "Save to tracker" from Find Openings; resume match shown on an application | planned |
+| 7 | Bring the old Delta in: "Save to tracker" from Find Openings; resume match shown on an application | **on hold**: the old Delta is kept as it is (untouched, never deployed) until it is decided whether it is still wanted (decision 43) |
 | 8 | Follow-up reminders (overdue list, daily digest) | planned |
 | 9a | Accounts: email + password sign-in, sessions, profile (school, goals, resume version names), delete account | done |
-| 9b | Hosting it: https, per-address rate limiting, email verification and password reset, retire the unauthenticated legacy endpoints | later |
+| 9b | Hosting it: see [`hosting.md`](hosting.md) for the plan. Password reset waits for the login wireframe | planned |
 | - | Optional: CSV/XLSX import, weekly ingest, sponsorship filter | when wanted |
 
 ### What each next step is for
@@ -106,7 +106,6 @@ UI:
 - Role and term can't be edited from the panel (they define what counts as a duplicate); fix
   a typo by archiving and re-adding. A misspelt COMPANY can now be renamed or merged on the
   Companies screen.
-- New accounts get "Simon Fraser University" as the alumni-search school until they set their own on the Profile screen (the default predates accounts).
 - No password reset or email check yet (they need email sending): a forgotten password means restoring from a backup or editing the database by hand. Do this before inviting anyone.
 - 14 companies still have no sector; the Companies screen has a "No sector" filter to work through them.
 

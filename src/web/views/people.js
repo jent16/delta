@@ -30,20 +30,20 @@ export async function peopleView() {
   table.view = "people";
   renderTable();
 
-  const school = h("input", { class: "inline-input school", type: "text", value: settings.school, "aria-label": "School for the alumni search", maxlength: "100" });
+  const school = h("input", { class: "inline-input school", type: "text", value: settings.school, "aria-label": "School for the people search (optional)", maxlength: "100", placeholder: "Optional" });
   school.addEventListener("change", async () => {
-    try { const s = await api.editSettings({ school: school.value }); school.value = s.school; toast(`Alumni searches will look for ${s.school}`); }
+    try { const s = await api.editSettings({ school: school.value }); school.value = s.school; toast(s.school ? `Searches will look for ${s.school} alumni` : "Searches will look for anyone at the company"); }
     catch (e) { school.value = settings.school; toast(describeError(e), true); }
   });
 
   return h("div", {},
     h("div", { class: "head" }, h("div", {}, h("h1", { class: "title", text: "People" }), countEl), toolbar()),
-    h("p", { class: "note-line", text: "Recruiters, alumni and referrers. Link them to applications, log what you did, and find alumni at a company. This stays in your own database." }),
+    h("p", { class: "note-line", text: "Recruiters, alumni and referrers. Link them to applications, log what you did, and find people at a company. This stays in your own database." }),
     h("div", { class: "chips-row" }, chipsEl, h("div", { class: "row-actions" },
       h("button", { class: "btn", type: "button", onclick: () => openLinkedInImport() }, "Import from LinkedIn"),
       h("button", { class: "btn primary", type: "button", onclick: () => ctx.openNewPerson() }, icon("plus", 15), "Add person"))),
     h("div", { class: "tablewrap" }, gridEl),
-    h("div", { class: "settings-line" }, h("label", { for: "school", text: "School for the alumni search" }), (school.id = "school", school)));
+    h("div", { class: "settings-line" }, h("label", { for: "school", text: "School for the people search (optional, blank = anyone at the company)" }), (school.id = "school", school)));
 }
 
 function renderTable() {

@@ -68,7 +68,7 @@ elsewhere.
 | `POST /api/contacts/:id/events`, `POST /api/contacts/:id/links`, `DELETE /api/contacts/:id/links/:applicationId` | the dated log (`{kind, on?, note?}`), and linking a person to an application with a role |
 | `GET /api/applications/:id/contacts` | the people linked to an application, other people at its company, and the alumni search links |
 | `POST /api/contacts/from-profile` | `{url, applicationId?, name?, relationship?, role?}`: add the person behind a pasted LinkedIn profile link (201), or link someone you already have (200); the name comes from the link unless given |
-| `GET/PATCH /api/settings` | preferences: `school`, `program`, `gradYear`, `targetRoles`, `targetTerms` (empty puts the default back) |
+| `GET/PATCH /api/settings` | preferences: `school`, `program`, `gradYear`, `targetRoles`, `targetTerms` (blank clears it; no school means people searches look at the whole company) |
 | `GET/PATCH /api/profile` | your profile: `{profile, resumeVersions, unlisted}`; PATCH takes `name` and any of the settings above, all or nothing. The email is read-only |
 | `POST /api/resume-versions`, `PATCH/DELETE /api/resume-versions/:id` | the names of your resume versions (no files). Renaming renames the same text on your applications; removing leaves them alone |
 | `GET /api/auth/state` | public: `{account, canSignUp, claimsExistingData}` |
@@ -109,11 +109,10 @@ writes through the same API as everything else.
 - **People.** Recruiters, alumni and referrers. Add someone with the company they work at, how you
   know them and a follow-up date; link them to applications (as referrer, recruiter, interviewer...);
   keep a dated log of what you did (messaged, replied, call, asked for a referral). An application's
-  panel lists who is linked, other people you know at that company, and "Find SFU alumni at Stripe"
-  links. Those only open a normal search in your own browser: nothing is scraped or sent anywhere.
-  People due a follow-up show in Reminders. The school is a setting; blank puts the default back.
+  panel lists who is linked, other people you know at that company, and "People at Stripe" (or "<your school> alumni at Stripe") links. Those only open a normal search in your own browser: nothing is scraped or sent anywhere.
+  People due a follow-up show in Reminders. The school is optional: set one and the searches look for its alumni; leave it blank and they look for anyone at the company.
   **Found someone on LinkedIn?** In an application's People section, paste their profile link (or several,
-  one per line): they are added at that company, linked to the application, and marked alumni (or whatever
+  one per line): they are added at that company, linked to the application, and marked alumni if you have set a school, otherwise "other" (or whatever
   you pick). The name is worked out from the link, so check it. Someone you already have is linked, never
   duplicated. Only the text of the link is read; nothing is fetched from LinkedIn.
   **Import from LinkedIn** reads the `Connections.csv` you download from LinkedIn (Settings, Data

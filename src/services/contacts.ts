@@ -126,7 +126,7 @@ export function createContactService(deps: { contacts: ContactRepository; applic
       else {
         const name = req.name ?? nameFromProfileUrl(req.url);
         if (!name) throw new ValidationError([{ field: "name", message: "couldn't be worked out from that link: type the person's name" }]);
-        contact = contacts.insert(userId, parseNewContact({ name, company: application?.company ?? null, linkedinUrl: `https://www.${key}`, relationship: req.relationship }), now());
+        contact = contacts.insert(userId, parseNewContact({ name, company: application?.company ?? null, linkedinUrl: `https://www.${key}`, relationship: req.relationship ?? (settings.get(userId).school ? "alumni" : "other") }), now());
         created = true;
       }
       let linked = false;

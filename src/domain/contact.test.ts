@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { alumniLinks, DEFAULT_SCHOOL } from "./alumni.ts";
+import { alumniLinks, linksAreSchoolBased } from "./alumni.ts";
 import { isLinkedInUrl, parseContactPatch, parseContactQuery, parseEvent, parseLink, parseNewContact } from "./contact.ts";
 import { ValidationError } from "./errors.ts";
 import { DEFAULT_SETTINGS, parseSettingsPatch } from "./settings.ts";
@@ -87,15 +87,33 @@ test("alumni links can't be hijacked by what is in a company name: quotes, amper
   assert.equal(new URL(g!.url).searchParams.get("q"), 'site:linkedin.com/in "SFU" "A&B Co #1 / x?y=z"'); // the stray quotes are gone, so the phrase stays closed
 });
 
-test("no company means no links; a blank school falls back to the default", () => {
+test("no company means no links; a blank school searches for anyone at the company instead of assuming a school", () => {
   assert.deepEqual(alumniLinks("SFU", "   "), []);
   assert.deepEqual(alumniLinks("SFU", '""'), []);
-  assert.match(alumniLinks("  ", "Stripe")[0]!.label, new RegExp(`^${DEFAULT_SCHOOL}`));
+  assert.deepEqual(alumniLinks("", "  "), []);
+  for (const blank of ["", "  ", '""']) {
+    const links = alumniLinks(blank, "Stripe");
+    assert.deepEqual(links.map((l) => l.id), ["linkedin-people", "google-people", "linkedin-recruiters"], JSON.stringify(blank));
+    assert.deepEqual(links.map((l) => l.label), ["People at Stripe on LinkedIn", "People at Stripe on Google", "Recruiters at Stripe on LinkedIn"]);
+    assert.equal(links[0]!.url, "https://www.linkedin.com/search/results/people/?keywords=Stripe");
+    assert.equal(links[1]!.url, "https://www.google.com/search?q=site%3Alinkedin.com%2Fin%20%22Stripe%22");
+    assert.equal(links[2]!.url, "https://www.linkedin.com/search/results/people/?keywords=Stripe%20university%20recruiter");
+    assert.equal(links.some((l) => /Simon Fraser|alumni/i.test(l.label + l.url)), false);
+  }
+  assert.equal(linksAreSchoolBased(alumniLinks("SFU", "Stripe")), true);
+  assert.equal(linksAreSchoolBased(alumniLinks("", "Stripe")), false);
+});
+
+test("a company name can't hijack the no-school searches either", () => {
+  const [li, g] = alumniLinks("", 'A&B "Co" #1');
+  assert.equal([...new URL(li!.url).searchParams.keys()].length, 1);
+  assert.equal(new URL(li!.url).hash, "");
+  assert.equal(new URL(g!.url).searchParams.get("q"), 'site:linkedin.com/in "A&B Co #1"');
 });
 
 // ---- settings ----
-test("settings: the school can be set, and blank or null puts the default back", () => {
-  assert.equal(DEFAULT_SETTINGS.school, "Simon Fraser University");
+test("settings: the school can be set, and blank or null clears it (there is no default school)", () => {
+  assert.equal(DEFAULT_SETTINGS.school, "");
   assert.deepEqual(parseSettingsPatch({ school: "  University   of   Waterloo " }), { school: "University of Waterloo" });
   assert.deepEqual(parseSettingsPatch({ school: "" }), { school: null });
   assert.deepEqual(parseSettingsPatch({ school: null }), { school: null });
@@ -107,8 +125,8 @@ test("settings: the school can be set, and blank or null puts the default back",
 
 import { parseFromProfile } from "./contact.ts";
 
-test("pasting a profile link: the link is required; relationship defaults to alumni and role to other; everything else is checked", () => {
-  assert.deepEqual(parseFromProfile({ url: " https://www.linkedin.com/in/a " }), { url: "https://www.linkedin.com/in/a", applicationId: null, name: null, relationship: "alumni", role: "other" });
+test("pasting a profile link: the link is required; relationship is left for the service to decide and role defaults to other; everything else is checked", () => {
+  assert.deepEqual(parseFromProfile({ url: " https://www.linkedin.com/in/a " }), { url: "https://www.linkedin.com/in/a", applicationId: null, name: null, relationship: null, role: "other" });
   assert.deepEqual(parseFromProfile({ url: "u", applicationId: 4, name: "  Priya   Shah ", relationship: "recruiter", role: "referrer" }), { url: "u", applicationId: 4, name: "Priya Shah", relationship: "recruiter", role: "referrer" });
   for (const [bad, field] of [[{}, "url"], [{ url: "" }, "url"], [{ url: 5 }, "url"], [{ url: "u", applicationId: "4" }, "applicationId"], [{ url: "u", applicationId: 0 }, "applicationId"], [{ url: "u", name: 5 }, "name"],
     [{ url: "u", name: "x".repeat(201) }, "name"], [{ url: "u", relationship: "boss" }, "relationship"], [{ url: "u", role: "boss" }, "role"], [{ url: "u", extra: 1 }, "extra"]] as const) {

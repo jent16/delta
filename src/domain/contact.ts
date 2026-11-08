@@ -233,7 +233,7 @@ export function parseEvent(rawInput: unknown, today: string): NewContactEvent {
 }
 
 /** `{ url, applicationId?, name?, relationship?, role? }`: add the person behind a pasted profile link. */
-export function parseFromProfile(rawInput: unknown): { url: string; applicationId: number | null; name: string | null; relationship: Relationship; role: LinkRole } {
+export function parseFromProfile(rawInput: unknown): { url: string; applicationId: number | null; name: string | null; relationship: Relationship | null; role: LinkRole } {
   const raw = object(rawInput);
   const issues: ValidationIssue[] = [];
   for (const key of Object.keys(raw)) if (!["url", "applicationId", "name", "relationship", "role"].includes(key)) issues.push({ field: key, message: "unknown field" });
@@ -250,10 +250,11 @@ export function parseFromProfile(rawInput: unknown): { url: string; applicationI
     else if (raw.name.trim().length > 200) issues.push({ field: "name", message: "is too long (max 200)" });
     else name = raw.name.replace(/\s+/g, " ").trim();
   }
-  const relationship = raw.relationship === undefined ? "alumni" : raw.relationship;
-  if (typeof relationship !== "string" || !(RELATIONSHIPS as readonly string[]).includes(relationship)) issues.push({ field: "relationship", message: `must be one of: ${RELATIONSHIPS.join(", ")}` });
+  // not given = null: the service decides (an alum if you have set a school, otherwise just "other")
+  const relationship = raw.relationship === undefined ? null : raw.relationship;
+  if (relationship !== null && (typeof relationship !== "string" || !(RELATIONSHIPS as readonly string[]).includes(relationship))) issues.push({ field: "relationship", message: `must be one of: ${RELATIONSHIPS.join(", ")}` });
   const role = raw.role === undefined ? "other" : raw.role;
   if (typeof role !== "string" || !(LINK_ROLES as readonly string[]).includes(role)) issues.push({ field: "role", message: `must be one of: ${LINK_ROLES.join(", ")}` });
   if (issues.length) throw new ValidationError(issues);
-  return { url, applicationId, name, relationship: relationship as Relationship, role: role as LinkRole };
+  return { url, applicationId, name, relationship: relationship as Relationship | null, role: role as LinkRole };
 }

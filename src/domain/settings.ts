@@ -1,8 +1,6 @@
-// A user's preferences and profile: the school the alumni helper searches for, and what they are
-// looking for (program, graduation year, target roles and terms). All optional except that the school
-// has a default.
+// A user's preferences and profile: the school the people search uses (optional: blank searches for anyone at
+// the company), and what they are looking for (program, graduation year, target roles and terms). All optional.
 
-import { DEFAULT_SCHOOL } from "./alumni.ts";
 import { ValidationError } from "./errors.ts";
 import type { ValidationIssue } from "./errors.ts";
 import { ROLE_FUNCTIONS } from "./vocab.ts";
@@ -15,7 +13,7 @@ export interface Settings {
   targetTerms: string[];
 }
 
-export const DEFAULT_SETTINGS: Settings = { school: DEFAULT_SCHOOL, program: "", gradYear: null, targetRoles: [], targetTerms: [] };
+export const DEFAULT_SETTINGS: Settings = { school: "", program: "", gradYear: null, targetRoles: [], targetTerms: [] };
 
 export const SETTING_KEYS = ["school", "program", "gradYear", "targetRoles", "targetTerms"] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];

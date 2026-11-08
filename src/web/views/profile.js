@@ -50,7 +50,7 @@ export async function profileView() {
       field("pf-email", "Email", h("input", { id: "pf-email", type: "email", value: profile.email ?? "", readonly: true }), `Member since ${memberSince(profile.createdAt)}`)));
 
   // ---- school and goals ----
-  const school = h("input", { id: "pf-school", type: "text", value: profile.school, maxlength: "100" });
+  const school = h("input", { id: "pf-school", type: "text", value: profile.school, maxlength: "100", placeholder: "Optional, e.g. your university" });
   saves(school, "school", () => school.value.trim());
   const program = h("input", { id: "pf-program", type: "text", value: profile.program, maxlength: "100", placeholder: "e.g. Computer Science" });
   saves(program, "program", () => program.value.trim());
@@ -73,7 +73,7 @@ export async function profileView() {
   drawRoles();
   const goals = h("section", { class: "panel" }, h("h2", { class: "panel-title", text: "School and what you're looking for" }),
     h("div", { class: "edit-grid" },
-      field("pf-school", "School", school, "The alumni search on the People screen looks for people from here."),
+      field("pf-school", "School", school, "Optional. With a school, the people searches look for its alumni at a company; leave it blank to search for anyone who works there."),
       field("pf-program", "Program", program),
       field("pf-year", "Graduation year", year),
       field("pf-terms", "Terms you're applying for", terms, "Separate with commas."),

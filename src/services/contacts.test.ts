@@ -110,7 +110,8 @@ test("an application's panel: who is linked, other people you know at that compa
   const v = t.contacts.forApplication(1, app.id);
   assert.deepEqual(v.people.map((p) => p.contact.name), ["Linked"]);
   assert.deepEqual(v.atCompany.map((c) => c.name), ["Unlinked"]);                       // not the linked one, not other companies'
-  assert.equal(v.alumni[0]!.url, "https://www.linkedin.com/search/results/people/?keywords=Simon%20Fraser%20University%20Stripe");
+  assert.equal(v.alumni[0]!.url, "https://www.linkedin.com/search/results/people/?keywords=Stripe"); // no school set: anyone at the company
+  assert.equal(v.alumni[0]!.label, "People at Stripe on LinkedIn");
   t.settings.edit(1, { school: "University of Waterloo" });
   assert.match(t.contacts.forApplication(1, app.id).alumni[0]!.label, /^University of Waterloo alumni at Stripe/);
   assert.throws(() => t.contacts.forApplication(1, 999), NotFoundError);
@@ -189,13 +190,13 @@ test("the repository checks ownership itself, even if a service forgot to (linki
   assert.equal(count(t, "contacts"), 1);
 });
 
-test("settings: the school defaults to SFU, can be changed, and goes back to the default when cleared; per user", () => {
+test("settings: there is no default school; it can be set and cleared; per user", () => {
   const t = makeTracker();
   other(t);
-  assert.equal(t.settings.get(1).school, "Simon Fraser University");
+  assert.equal(t.settings.get(1).school, "");
   assert.equal(t.settings.edit(1, { school: "University of Waterloo" }).school, "University of Waterloo");
-  assert.equal(t.settings.get(2).school, "Simon Fraser University");
-  assert.equal(t.settings.edit(1, { school: "" }).school, "Simon Fraser University");
+  assert.equal(t.settings.get(2).school, "");
+  assert.equal(t.settings.edit(1, { school: "" }).school, "");
   assert.equal(count(t, "user_settings"), 0);
   assert.throws(() => t.settings.edit(1, { theme: "dark" }), ValidationError);
 });
@@ -259,11 +260,17 @@ test("the export is per user: each user's file holds only their own people", () 
 // ---------- pasting a profile link ----------
 const LINK = "https://www.linkedin.com/in/priya-shah-4a8b21";
 
-test("pasting a link adds the person at the application's company, as alumni, linked to it, with the name worked out from the link", () => {
+test("pasting a link adds the person at the application's company, linked to it, with the name worked out from the link; 'other' unless you have a school (then an alum)", () => {
   const t = makeTracker();
   const app = t.service.add(1, { company: "Stripe", roleTitle: "SWE" });
   const r = t.contacts.addFromProfile(1, { url: `${LINK}?trk=x`, applicationId: app.id });
-  assert.deepEqual([r.created, r.linked, r.contact.name, r.contact.company, r.contact.relationship, r.contact.linkedinUrl], [true, true, "Priya Shah", "Stripe", "alumni", "https://www.linkedin.com/in/priya-shah-4a8b21"]);
+  assert.deepEqual([r.created, r.linked, r.contact.name, r.contact.company, r.contact.relationship, r.contact.linkedinUrl], [true, true, "Priya Shah", "Stripe", "other", "https://www.linkedin.com/in/priya-shah-4a8b21"]);
+  t.settings.edit(1, { school: "Simon Fraser University" });
+  const second = t.contacts.addFromProfile(1, { url: "https://www.linkedin.com/in/dana-fox", applicationId: app.id });
+  assert.equal(second.contact.relationship, "alumni");
+  assert.equal(t.contacts.addFromProfile(1, { url: "https://www.linkedin.com/in/lee-ho", applicationId: app.id, relationship: "friend" }).contact.relationship, "friend");
+  t.contacts.remove(1, second.contact.id);
+  t.contacts.remove(1, t.contacts.list(1, { q: "lee" })[0]!.id);
   assert.equal(r.contact.companyId, app.companyId);                                          // the company's own record, not a new one
   assert.deepEqual(t.contacts.forApplication(1, app.id).people.map((p) => [p.contact.name, p.role]), [["Priya Shah", "other"]]);
   assert.equal(t.companies.list(1).length, 1);

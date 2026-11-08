@@ -47,15 +47,15 @@ export async function fillPeople(application, container) {
   container.append(
     h("div", { class: "alumni-links" }, view.alumni.map((a) => externalLink(a.url, a.label, SEARCH_HOSTS))),
     h("p", { class: "note-line", text: "Searches open in your own browser. Nothing is scraped or sent anywhere." }),
-    pasteBox(application, again),
+    pasteBox(application, again, view.alumni.some((a) => a.id === "linkedin-alumni")),
     h("div", { class: "log-form" }, h("button", { class: "btn small", type: "button", onclick: () => ctx.openNewPerson({ company: application.company, applicationId: application.id }) }, icon("plus", 14), `Or add someone by hand`)));
 }
 
 // Found someone on LinkedIn? Paste their profile address (or several, one per line) and they are added at this
 // company and linked here. Only the text of the link is read: nothing is fetched from LinkedIn.
-function pasteBox(application, again) {
+function pasteBox(application, again, schoolSet) {
   const links = h("textarea", { class: "paste", rows: "2", "aria-label": "LinkedIn profile links", placeholder: "Paste profile links here, one per line" });
-  const kind = h("select", { "aria-label": "How you know them" }, vocab.relationships.map((r) => h("option", { value: r, text: r.charAt(0).toUpperCase() + r.slice(1), selected: r === "alumni" })));
+  const kind = h("select", { "aria-label": "How you know them" }, vocab.relationships.map((r) => h("option", { value: r, text: r.charAt(0).toUpperCase() + r.slice(1), selected: r === (schoolSet ? "alumni" : "other") })));
   const add = h("button", { class: "btn small", type: "button", text: "Add" });
 
   async function run() {

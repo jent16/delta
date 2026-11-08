@@ -16,9 +16,11 @@ import { dashboardView } from "./views/dashboard.js";
 import { insightsView } from "./views/insights.js";
 import { openDrawer } from "./views/drawer.js";
 import { openNewApplication } from "./views/new-application.js";
+import { openNewPerson, openPerson } from "./views/person.js";
+import { peopleLeave, peopleView } from "./views/people.js";
 import { remindersView } from "./views/reminders.js";
 
-const SCREENS = { dashboard: dashboardView, applications: applicationsView, companies: companiesView, insights: insightsView, reminders: remindersView };
+const SCREENS = { dashboard: dashboardView, applications: applicationsView, companies: companiesView, people: peopleView, insights: insightsView, reminders: remindersView };
 
 let badgeCount = 0;
 let renderToken = 0;
@@ -29,7 +31,7 @@ function renderTop() {
     icon(ic, 15), name, view === "reminders" ? h("span", { class: "badge", id: "badge", text: String(badgeCount), hidden: badgeCount === 0 }) : null);
   clear($("#topbar")).append(
     h("div", { class: "brand" }, h("span", { class: "brand-mark" }, icon("delta", 16)), "Delta"),
-    h("nav", { class: "nav", "aria-label": "Main", "data-knob": "nav" }, nav("grid", "Dashboard", "dashboard"), nav("rows", "Applications", "applications"), nav("building", "Companies", "companies"), nav("chart", "Insights", "insights"), nav("bell", "Reminders", "reminders")),
+    h("nav", { class: "nav", "aria-label": "Main", "data-knob": "nav" }, nav("grid", "Dashboard", "dashboard"), nav("rows", "Applications", "applications"), nav("building", "Companies", "companies"), nav("person", "People", "people"), nav("chart", "Insights", "insights"), nav("bell", "Reminders", "reminders")),
     h("button", { class: "btn small appearance", type: "button", "aria-haspopup": "menu", "aria-label": "Appearance: mode and design", onclick: (e) => { e.stopPropagation(); appearanceMenu(e.currentTarget); } }, icon("palette", 15), "Appearance"));
 }
 
@@ -45,7 +47,7 @@ function appearanceMenu(anchor) {
 async function refreshBadge() {
   try {
     const { reminders } = await api.reminders();
-    badgeCount = reminders.followUps.length + reminders.deadlines.length;
+    badgeCount = reminders.followUps.length + reminders.deadlines.length + (reminders.contactFollowUps?.length ?? 0);
     const el = $("#badge");
     if (el) { el.textContent = String(badgeCount); el.hidden = badgeCount === 0; }
   } catch { /* the badge is a nicety; the screens report their own errors */ }
@@ -62,6 +64,7 @@ async function render(mode = "none") {
   const container = $("#view");
   if (state.view !== "applications") leaveApplications();
   if (state.view !== "companies") companiesLeave();
+  if (state.view !== "people") peopleLeave();
   if (!container.firstChild) showMessage(container, "Loading…");
   try {
     const node = await SCREENS[state.view]();
@@ -97,6 +100,8 @@ ctx.refresh = (mode) => render(mode);
 ctx.navigate = navigate;
 ctx.openApplication = openDrawer;
 ctx.openNew = openNewApplication;
+ctx.openPerson = openPerson;
+ctx.openNewPerson = openNewPerson;
 
 // ---------- keyboard ----------
 document.addEventListener("keydown", (e) => {

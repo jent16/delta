@@ -156,3 +156,15 @@ test("things that are centred with `transform` cannot be animated with transform
     assert.doesNotMatch(rule, /transform:\s*translateX\(-50%\)/, `${sel} is centred with a transform that an entrance animation would overwrite`);
   }
 });
+
+// ---------- links to other sites ----------
+test("links to other sites are made in exactly one place, which checks the address and opens it safely", () => {
+  const offenders = js.filter((f) => !f.endsWith("lib/ui.js") && /\bh\(\s*["']a["']|\bhref\s*:|\.href\s*=|(?:window|document)\.location\b|\blocation\.(?:href\s*=|assign\s*\(|replace\s*\()|window\.open\s*\(/.test(code(f))).map(rel);
+  assert.deepEqual(offenders, [], "build links with externalLink() so the address is checked first");
+  const ui = code(join(WEB, "lib/ui.js"));
+  assert.match(ui, /rel:\s*"noopener noreferrer"/);   // the other site learns nothing about this page and cannot reach back into it
+  assert.match(ui, /target:\s*"_blank"/);
+  assert.match(ui, /u\.protocol === "https:"/);        // never javascript:, data:, or plain http
+  assert.match(ui, /!u\.username && !u\.password/);
+  assert.match(ui, /hostname === "linkedin\.com"|host === "linkedin\.com"/);
+});

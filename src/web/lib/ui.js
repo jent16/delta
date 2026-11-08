@@ -95,3 +95,23 @@ export function showMessage(container, text, { error = false, retry } = {}) {
   clear(container).append(h("div", { class: `state-msg${error ? " err" : ""}`, role: error ? "alert" : "status" },
     text, retry ? h("div", {}, h("button", { class: "btn", type: "button", onclick: retry, text: "Try again" })) : null));
 }
+
+// ---- links to other sites ----
+// A link is only ever built from an address that has been checked here: https, and one of the hosts we expect.
+// The server already validates what it stores, but this is the last step before it becomes a clickable thing,
+// so a bad value (from an import, an old row, a bug) shows as plain text instead of a `javascript:` link.
+const LINKEDIN_HOSTS = (host) => host === "linkedin.com" || host.endsWith(".linkedin.com");
+export function safeHref(url, hostOk = LINKEDIN_HOSTS) {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && hostOk(u.hostname) && !u.username && !u.password ? u.href : null;
+  } catch { return null; }
+}
+
+/** An external link (opens in a new tab, tells the other site nothing about this one), or plain text if the address isn't safe. */
+export function externalLink(url, text, hostOk) {
+  const href = safeHref(url, hostOk);
+  if (!href) return h("span", { text });
+  return h("a", { class: "link-out", href, target: "_blank", rel: "noopener noreferrer" }, text, icon("external", 12));
+}
+export const SEARCH_HOSTS = (host) => host === "www.linkedin.com" || host === "www.google.com";

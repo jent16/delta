@@ -64,6 +64,10 @@ elsewhere.
 | `POST /api/companies/:id/merge` | `{into}`: move every application to another company and remove this one; refused if two would become the same role |
 | `GET /api/stats` | counts by status/function/sector, the funnel, response rate, median days to a response; `?list=<id>` or any application filter |
 | `GET /api/breakdowns` | replies/interviews/offers by `function`, `sector`, `source`, `resume`, the sample threshold, and median days per stage; scoped like stats (`?list=<id>` or any filter) |
+| `GET/POST /api/contacts`, `GET/PATCH/DELETE /api/contacts/:id` | people; list filters `q`, `company`, `relationship`, `due=1`; delete is permanent and takes the person's log and links |
+| `POST /api/contacts/:id/events`, `POST /api/contacts/:id/links`, `DELETE /api/contacts/:id/links/:applicationId` | the dated log (`{kind, on?, note?}`), and linking a person to an application with a role |
+| `GET /api/applications/:id/contacts` | the people linked to an application, other people at its company, and the alumni search links |
+| `GET/PATCH /api/settings` | preferences; today `school` (blank puts the default back) |
 | `GET /api/reminders` | follow-ups due, upcoming/missed deadlines, applications gone quiet; `?days=7&staleDays=21&list=<id>` |
 | `GET /api/export`, `/api/export.csv` | your data as a download |
 
@@ -95,6 +99,12 @@ writes through the same API as everything else.
   application follows. Rename fixes a spelling everywhere; "Merge into…" folds a duplicate
   (say "Stripe Inc") into the one you meant, moving its applications. A filter shows the
   companies that still have no sector.
+- **People.** Recruiters, alumni and referrers. Add someone with the company they work at, how you
+  know them and a follow-up date; link them to applications (as referrer, recruiter, interviewer...);
+  keep a dated log of what you did (messaged, replied, call, asked for a referral). An application's
+  panel lists who is linked, other people you know at that company, and "Find SFU alumni at Stripe"
+  links. Those only open a normal search in your own browser: nothing is scraped or sent anywhere.
+  People due a follow-up show in Reminders. The school is a setting; blank puts the default back.
 - **Insights.** Replies, interviews and offers split by kind of role, sector, where you found the
   posting and which resume you sent, plus how long each stage takes. Every row shows its counts,
   and rows with fewer than 10 applications are dimmed and marked "few": with a small search a rate is

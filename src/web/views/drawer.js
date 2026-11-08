@@ -6,9 +6,11 @@ import { api, describeError } from "../lib/api.js";
 import { $, clear, h, icon } from "../lib/dom.js";
 import { ctx } from "../lib/ctx.js";
 import { shortDate } from "../lib/format.js";
-import { cancelMotion, crossfade, flyBetween, reduced, settle, staggerIn } from "../lib/motion.js";
-import { DURATION, exitDuration, rubberBand } from "../lib/motion-math.js";
+import { attachDrag } from "../lib/drag.js";
+import { crossfade, flyBetween, staggerIn } from "../lib/motion.js";
+import { DURATION, exitDuration } from "../lib/motion-math.js";
 import { closeOverlays, onClosing, openOverlay } from "../lib/overlay.js";
+import { fillPeople } from "./people-section.js";
 import { label, movesFrom, vocab } from "../lib/state.js";
 import { chip, logo, progressBar, toast } from "../lib/ui.js";
 
@@ -111,6 +113,8 @@ function draw({ application: a, events, progress }, from) {
     } catch (e) { toast(describeError(e), true); }
   };
 
+  const peopleBox = h("div", { class: "people-box" }, h("p", { class: "muted", text: "Loading…" }));
+  fillPeople(a, peopleBox);
   const close = h("button", { class: "btn small closebtn", type: "button", "aria-label": "Close details", onclick: closeOverlays }, icon("x", 14), "Close");
   const head = h("div", { class: "drawer-head" },
     h("div", { class: "dh-top" }, close),
@@ -121,6 +125,7 @@ function draw({ application: a, events, progress }, from) {
       next.length ? h("h3", { text: "Move to" }) : null, moves),
     h("div", { class: "sect" }, h("h3", { text: "Details" }), h("p", { class: "note-line", text: appliedOn ? `Applied ${shortDate(appliedOn)}.` : "Not applied yet." }), grid),
     h("div", { class: "sect" }, h("h3", { text: "History" }), timeline),
+    h("div", { class: "sect" }, h("h3", { text: "People" }), peopleBox),
     h("div", { class: "sect" }, h("h3", { text: "Notes" }), notes),
     h("div", { class: "sect" }, h("button", { class: "btn small", type: "button", text: "Archive", onclick: archive })));
 
@@ -147,43 +152,3 @@ onClosing("drawer", () => {
   const row = currentId == null ? null : logoForApp(currentId);
   if (mine && row && onScreen(row)) flyBetween(mine, row, { duration: exitDuration(DURATION.move), hideTarget: false, hideSource: true });
 });
-
-// ---- drag the header to dismiss. While held it follows the hand exactly (no tweening); pulled the
-// wrong way (past where it rests) it resists like a rubber band; let go and it either leaves or eases home.
-function attachDrag(drawer, head) {
-  let drag = null;
-  const scrim = $("#scrim");
-  head.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0 || e.target.closest("button")) return;
-    cancelMotion(drawer);
-    drag = { id: e.pointerId, x0: e.clientX, last: e.clientX, lastT: e.timeStamp, v: 0 };
-    drawer._dragX = 0;
-    head.setPointerCapture(e.pointerId);
-    head.classList.add("held");
-  });
-  head.addEventListener("pointermove", (e) => {
-    if (!drag || e.pointerId !== drag.id) return;
-    const raw = e.clientX - drag.x0;
-    const offset = raw >= 0 ? raw : -rubberBand(-raw, 48);
-    drawer._dragX = offset;
-    drawer.style.transform = `translateX(${offset}px)`;
-    scrim.style.opacity = String(Math.max(0, 1 - Math.max(0, offset) / drawer.offsetWidth));
-    drag.v = (e.clientX - drag.last) / Math.max(1, e.timeStamp - drag.lastT); // px per ms, to tell a flick from a slow drag
-    drag.last = e.clientX; drag.lastT = e.timeStamp;
-  });
-  const release = (e) => {
-    if (!drag || e.pointerId !== drag.id) return;
-    const flick = drag.v; // read before forgetting the drag
-    drag = null;
-    head.classList.remove("held");
-    const offset = drawer._dragX ?? 0;
-    // dragged more than 30% of the way, or flicked to the right: it leaves, carrying on from where the hand let go
-    if (offset > 0 && e.type === "pointerup" && (offset > drawer.offsetWidth * 0.3 || flick > 0.6)) { closeOverlays(); return; }
-    drawer.style.transform = "";
-    drawer._dragX = 0;
-    scrim.style.opacity = "";
-    if (offset && !reduced()) settle(drawer, offset); // otherwise it eases home: ease-out, no bounce
-  };
-  head.addEventListener("pointerup", release);
-  head.addEventListener("pointercancel", release);
-}

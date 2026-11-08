@@ -6,4 +6,8 @@ export const ctx = {
   navigate: (_view, _list) => {},
   openApplication: (_id) => {},
   openNew: () => {},
+  /** Open a person's panel. `from` is the element that was clicked (optional). */
+  openPerson: (_id, _from) => {},
+  /** The "add a person" form. `prefill` may carry { company, applicationId, role } to link them straight away. */
+  openNewPerson: (_prefill) => {},
 };

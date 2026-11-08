@@ -8,7 +8,7 @@ import { state } from "../lib/state.js";
 export const table = { rerender: null, view: null }; // `view` says which screen registered it
 
 export function toolbar() {
-  const input = h("input", { id: "q", type: "search", placeholder: state.view === "companies" ? "Search companies" : "Search companies and roles", "aria-label": "Search applications", autocomplete: "off", value: state.query,
+  const input = h("input", { id: "q", type: "search", placeholder: state.view === "companies" ? "Search companies" : state.view === "people" ? "Search people" : "Search companies and roles", "aria-label": "Search applications", autocomplete: "off", value: state.query,
     oninput: (e) => {
       state.query = e.target.value;
       if (table.rerender && table.view === state.view) { table.rerender(); return; }

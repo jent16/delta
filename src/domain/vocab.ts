@@ -8,6 +8,7 @@
 // Deliberately NOT imported from the legacy lib/industries.js: the tracker
 // owns its vocabulary, so changing the old scoring module can't break it.
 
+import { EVENT_KINDS, LINK_ROLES, RELATIONSHIPS } from "./contact.ts";
 import { PROGRESS_STAGES } from "./progress.ts";
 import { nextStatuses, STATUSES } from "./status.ts";
 import type { Status } from "./status.ts";
@@ -51,5 +52,8 @@ export function describeVocabulary() {
     roleFunctions: [...ROLE_FUNCTIONS],
     sectors: [...SECTORS],
     progressStages: [...PROGRESS_STAGES],
+    relationships: [...RELATIONSHIPS],
+    linkRoles: [...LINK_ROLES],
+    eventKinds: [...EVENT_KINDS],
   };
 }

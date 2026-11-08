@@ -384,3 +384,26 @@ application, and counting it would make "applied" mean however long you left it.
 The two inputs the source and resume tables need (where you found it, which resume you sent)
 were already columns; they are now editable in the detail panel.
 
+## 39. People: a contact belongs to one company, links to many applications, and has a dated log
+A contact is tied to at most one company, where they work NOW (people change jobs; you edit
+it), using the same company record as applications, created in the same transaction. The
+link to an application is many-to-many with a role for THAT application ("referrer",
+"recruiter", "interviewer"...): one person can refer you to three roles, and one application can
+have a recruiter and a referrer. What you did with someone is a dated log (messaged, replied,
+call, asked for a referral), like an application's status history, which is what makes a
+follow-up date meaningful. A company stays while a person still works there, and merging two
+companies moves their people.
+**Privacy and safety.** These rows are personal data about OTHER people, so they stay in your
+database, are in your backups and export, and are never sent anywhere. Deleting a person is
+permanent (unlike applications, which archive) and takes their log and links with it; the UI
+asks first. Linking checks that BOTH the person and the application are the user's, and the
+repository checks it again, so one user can never attach a contact to another's application.
+A stored LinkedIn profile must be `https` on `linkedin.com`, and the UI re-checks the
+address before it becomes a link, so imported or odd data can never produce a `javascript:` link.
+**The alumni helper builds addresses and nothing more.** "Find SFU alumni at Stripe" assembles a
+normal LinkedIn or Google search (school + company) that opens in your own browser, logged in as
+you. No scraping, no automation, no use of any LinkedIn interface, which would break their terms
+and could get your account restricted. Names are encoded (and quotes removed) so a company
+called `A&B "Co" #1` cannot add parameters or break out of the search phrase; a test proves it.
+The school is a per-user setting, default Simon Fraser University.
+

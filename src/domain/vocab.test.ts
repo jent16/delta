@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { EVENT_KINDS, LINK_ROLES, RELATIONSHIPS } from "./contact.ts";
 import { PROGRESS_STAGES } from "./progress.ts";
 import { canTransition, STATUSES } from "./status.ts";
 import { describeVocabulary, ROLE_FUNCTIONS, SECTORS } from "./vocab.ts";
@@ -10,6 +11,9 @@ test("the vocabulary a client sees is the domain's own lists", () => {
   assert.deepEqual(v.roleFunctions, [...ROLE_FUNCTIONS]);
   assert.deepEqual(v.sectors, [...SECTORS]);
   assert.deepEqual(v.progressStages, [...PROGRESS_STAGES]);
+  assert.deepEqual(v.relationships, [...RELATIONSHIPS]);
+  assert.deepEqual(v.linkRoles, [...LINK_ROLES]);
+  assert.deepEqual(v.eventKinds, [...EVENT_KINDS]);
 });
 
 test("transitions: for every pair of statuses the client's table agrees with canTransition", () => {

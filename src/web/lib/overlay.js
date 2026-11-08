@@ -58,7 +58,7 @@ export function closeOverlays() {
       const dragged = open._dragX ?? 0; // if it was dragged away, carry on from where the hand let go
       open._dragX = 0;
       return slideOut(open, { x: Math.max(32, dragged + 32), duration, from: dragged ? `translateX(${dragged}px)` : "none" });
-    }).then(() => { open.inert = false; open.style.transform = ""; }),
+    }).then(() => { open.inert = false; open.style.transform = ""; open.classList.remove("wide"); }), // a wide dialog must not make the next one wide
     hideWith(scrim, () => fade(scrim, 0, duration)).then(() => { scrim.style.opacity = ""; }),
   ]);
 }

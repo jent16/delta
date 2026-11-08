@@ -63,7 +63,7 @@ with its own rebuildable `delta.db`.
 | 3c | API for the UI: company search, bulk edit, `missing=` filter, stats, reminders | done |
 | 4 | Web UI: dashboard, applications table, quick-add with company search, detail panel, reminders, light/dark and selectable designs | done (first version) |
 | 5 | Insights: replies by role/sector/source/resume, time in each stage, with sample sizes | done (first version) |
-| 6 | Contacts (many-to-many with applications), a dated log, follow-up reminders, and the alumni helper | done (first version); LinkedIn connections import still to do |
+| 6 | Contacts (many-to-many with applications), a dated log, follow-up reminders, and the alumni helper | done; LinkedIn connections import done for people at companies you have (option C, "you know 3 people at Jane Street" suggestions for the rest, is next) |
 | 7 | Bring the old Delta in: "Save to tracker" from Find Openings; resume match shown on an application | planned |
 | 8 | Follow-up reminders (overdue list, daily digest) | planned |
 | 9 | Make it multi-user: login, deploy, retire the unauthenticated legacy endpoints | later |

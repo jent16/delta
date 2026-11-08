@@ -7,6 +7,7 @@ import { ctx } from "../lib/ctx.js";
 import { ago, plural, shortDate, today } from "../lib/format.js";
 import { label, state, vocab } from "../lib/state.js";
 import { emptyNote, logo, toast } from "../lib/ui.js";
+import { openLinkedInImport } from "./linkedin-import.js";
 import { table, toolbar } from "./toolbar.js";
 
 let rows = [];
@@ -38,7 +39,9 @@ export async function peopleView() {
   return h("div", {},
     h("div", { class: "head" }, h("div", {}, h("h1", { class: "title", text: "People" }), countEl), toolbar()),
     h("p", { class: "note-line", text: "Recruiters, alumni and referrers. Link them to applications, log what you did, and find alumni at a company. This stays in your own database." }),
-    h("div", { class: "chips-row" }, chipsEl, h("button", { class: "btn primary", type: "button", onclick: () => ctx.openNewPerson() }, icon("plus", 15), "Add person")),
+    h("div", { class: "chips-row" }, chipsEl, h("div", { class: "row-actions" },
+      h("button", { class: "btn", type: "button", onclick: () => openLinkedInImport() }, "Import from LinkedIn"),
+      h("button", { class: "btn primary", type: "button", onclick: () => ctx.openNewPerson() }, icon("plus", 15), "Add person"))),
     h("div", { class: "tablewrap" }, gridEl),
     h("div", { class: "settings-line" }, h("label", { for: "school", text: "School for the alumni search" }), (school.id = "school", school)));
 }

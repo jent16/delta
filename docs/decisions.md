@@ -407,3 +407,31 @@ and could get your account restricted. Names are encoded (and quotes removed) so
 called `A&B "Co" #1` cannot add parameters or break out of the search phrase; a test proves it.
 The school is a per-user setting, default Simon Fraser University.
 
+## 40. The LinkedIn import adds only people at companies you already have, and asks when unsure
+A network is hundreds of people, almost all at companies you never applied to. Importing everyone
+would create hundreds of companies on the Companies screen. So the import keeps a connection only if
+their company is one you HAVE (an application or another contact there); the rest are counted, and the
+biggest untracked employers are listed in the preview so a company of yours spelt differently on
+LinkedIn is easy to spot. A later run picks up companies you have added since. Remembering the rest
+for "you know 3 people at Jane Street" suggestions is the planned follow-up (it is this plus a holding
+table), deliberately not built yet.
+**Matching is in tiers, and only two ever link automatically.** Exact (ignoring case and spacing) and
+normalised (dropping Inc., LLC, punctuation) link on their own. Anything else, an alias ("Amazon Web
+Services" for Amazon), your company's name at the start of theirs ("Stripe Payments Europe"), or a
+near-miss spelling, is shown as "is this the same company?" with the candidates and does nothing until
+you choose. A wrong automatic link would silently attach a person to the wrong company and nobody
+would notice; an extra question costs one click. A confirmation only counts if it names one of the
+candidates offered for THAT person.
+**Safe to repeat, and deletion sticks.** Each person is keyed by their profile link (any spelling of it),
+else email, else name and company, and recorded in a ledger. A re-import skips everyone recorded, and
+also anyone already in People by link or by name and company. If you delete an imported person the
+ledger keeps its row (contact_id becomes null), so they are not brought back: deleting is a choice.
+**Read the file, don't trust it.** LinkedIn sometimes puts notes above the header row and has changed
+its columns before, so the header is found (the first row with First Name and Last Name) and columns
+are located by name. Names lose pronouns, emoji and known trailing credentials; profile links must be
+https on linkedin.com; the connected-on date is only a note and never a reason to refuse a row. The
+export has no school, so "alumni" is never guessed; only a recruiter title is suggested, and shown as a guess.
+**Plumbing.** The body limit is raised to 8 MB for these two routes only (a real file is past the
+default 100 KB), and a too-large body is a 413 rather than a 500. A labelled `pre-import` backup is
+taken just before writing, and only when something will be written.
+

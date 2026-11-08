@@ -68,6 +68,7 @@ elsewhere.
 | `POST /api/contacts/:id/events`, `POST /api/contacts/:id/links`, `DELETE /api/contacts/:id/links/:applicationId` | the dated log (`{kind, on?, note?}`), and linking a person to an application with a role |
 | `GET /api/applications/:id/contacts` | the people linked to an application, other people at its company, and the alumni search links |
 | `GET/PATCH /api/settings` | preferences; today `school` (blank puts the default back) |
+| `POST /api/import/linkedin/preview`, `/commit` | `{csv, accept?}`: the text of `Connections.csv`, and `accept` maps a person's key to the company you confirmed for them. Preview writes nothing; commit takes a `pre-import` backup first |
 | `GET /api/reminders` | follow-ups due, upcoming/missed deadlines, applications gone quiet; `?days=7&staleDays=21&list=<id>` |
 | `GET /api/export`, `/api/export.csv` | your data as a download |
 
@@ -105,6 +106,12 @@ writes through the same API as everything else.
   panel lists who is linked, other people you know at that company, and "Find SFU alumni at Stripe"
   links. Those only open a normal search in your own browser: nothing is scraped or sent anywhere.
   People due a follow-up show in Reminders. The school is a setting; blank puts the default back.
+  **Import from LinkedIn** reads the `Connections.csv` you download from LinkedIn (Settings, Data
+  privacy, Get a copy of your data). It adds only the people who work at a company you already have;
+  exact and "Inc."-style matches link automatically, close ones ("Amazon Web Services", "Jane Street
+  Capital") are shown as a question for you to answer, and everyone else is counted and skipped, with
+  the most common untracked employers listed. Preview first, then import; a backup is taken just
+  before; importing again adds nothing new, and a person you deleted stays deleted.
 - **Insights.** Replies, interviews and offers split by kind of role, sector, where you found the
   posting and which resume you sent, plus how long each stage takes. Every row shows its counts,
   and rows with fewer than 10 applications are dimmed and marked "few": with a small search a rate is

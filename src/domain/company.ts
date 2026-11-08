@@ -58,7 +58,7 @@ const RANK: Record<MatchKind, number> = { exact: 0, prefix: 1, contains: 2, simi
  * you have typed so far, so "norht" (an unfinished, misspelt word) still finds "northwind".
  * Matching any word made "jane" suggest "Hamilton Lane".
  */
-function nearMiss(query: string, name: string): number | null {
+export function nearMiss(query: string, name: string): number | null {
   if (query.length < 5) return null;
   const allowed = query.length <= 5 ? 1 : 2;
   const first = name.split(" ")[0]!;

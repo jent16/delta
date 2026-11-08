@@ -16,3 +16,19 @@ export function createImportLedger(db: Db): ImportLedger {
     },
   };
 }
+
+import type { ContactImportLedger } from "../domain/ports.ts";
+
+export function createContactImportLedger(db: Db): ContactImportLedger {
+  return {
+    known(userId, source) {
+      const rows = db
+        .prepare("SELECT external_id, contact_id FROM contact_import_records WHERE user_id = ? AND source = ?")
+        .all(userId, source) as { external_id: string; contact_id: number | null }[];
+      return new Map(rows.map((r) => [r.external_id, r.contact_id]));
+    },
+    record(userId, source, externalId, contactId, now) {
+      db.prepare("INSERT OR IGNORE INTO contact_import_records (user_id, source, external_id, contact_id, imported_at) VALUES (?, ?, ?, ?, ?)").run(userId, source, externalId, contactId, now);
+    },
+  };
+}

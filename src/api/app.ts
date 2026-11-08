@@ -11,6 +11,7 @@ import type { CompanyService } from "../services/companies.ts";
 import type { ContactService, SettingsService } from "../services/contacts.ts";
 import type { ExportService } from "../services/export.ts";
 import type { ImportService } from "../services/import.ts";
+import type { LinkedInImportService } from "../services/linkedin-import.ts";
 import type { InsightsService } from "../services/insights.ts";
 import type { ListService } from "../services/lists.ts";
 import { describeVocabulary } from "../domain/vocab.ts";
@@ -22,6 +23,7 @@ export interface AppDeps {
   exports: ExportService;
   companies: CompanyService;
   contacts: ContactService;
+  linkedin: LinkedInImportService;
   settings: SettingsService;
   insights: InsightsService;
   /**
@@ -50,14 +52,18 @@ const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof CompanyExistsError) return void res.status(409).json({ error: "company_exists", message: err.message, existingId: err.existingId, existingName: err.existingName });
   if (err instanceof DuplicateError) return void res.status(409).json({ error: "duplicate", message: err.message, existingId: err.existingId });
   if (err instanceof SourceError) return void res.status(502).json({ error: "source_error", message: err.message });
+  if ((err as { type?: string }).type === "entity.too.large") return void res.status(413).json({ error: "too_large", message: "that request is too large" });
   if (err instanceof SyntaxError) return void res.status(400).json({ error: "validation", issues: [{ field: "(body)", message: "not valid JSON" }] });
   console.error(err); // an unexpected bug: log the detail, never leak it to the client
   res.status(500).json({ error: "internal" });
 };
 
 export function createApp(deps: AppDeps) {
-  const { applications, lists, imports, exports: exporter, companies, contacts, settings, insights, currentUserId, webRoot } = deps;
+  const { applications, lists, imports, exports: exporter, companies, contacts, settings, linkedin, insights, currentUserId, webRoot } = deps;
   const app = express();
+  // a connections file is a few hundred KB, past the default 100 KB limit: allow it on its own routes only (a parser
+  // registered first handles the body, so the general one below skips these paths and everything else stays small)
+  app.use("/api/import/linkedin", express.json({ limit: "8mb" }));
   app.use(express.json());
 
   // the closed lists and the status rules, so a client never keeps its own copy
@@ -190,6 +196,15 @@ export function createApp(deps: AppDeps) {
 
   app.post("/api/import/notion/commit", async (req, res) => {
     res.json(await imports.commit(currentUserId(req), req.body));
+  });
+
+  // --- import your LinkedIn connections: preview changes nothing, commit writes ---
+  app.post("/api/import/linkedin/preview", (req, res) => {
+    res.json(linkedin.preview(currentUserId(req), req.body));
+  });
+
+  app.post("/api/import/linkedin/commit", (req, res) => {
+    res.json(linkedin.commit(currentUserId(req), req.body));
   });
 
   // --- companies: the name and sector, stored once and shared by every application there ---

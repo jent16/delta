@@ -340,3 +340,34 @@ test("GET /api/reminders includes the people to follow up with", async (t) => {
   const r = (await api.call("GET", "/api/reminders")).body.reminders;
   assert.deepEqual(r.contactFollowUps.map((x: { contact: { name: string }; daysOverdue: number }) => [x.contact.name, x.daysOverdue]), [["Overdue", 5]]);
 });
+
+test("LinkedIn import over HTTP: preview writes nothing, commit adds, a big file is accepted here but not elsewhere, a bad file is a 400", async (t) => {
+  const api = await startApi();
+  t.after(() => api.close());
+  await api.call("POST", "/api/applications", { company: "Stripe", roleTitle: "SWE" });
+  const header = "First Name,Last Name,URL,Email Address,Company,Position,Connected On";
+  const csv = [header, "Priya,Shah,https://www.linkedin.com/in/priya,,Stripe,Engineer,05 Nov 2026", "Rex,X,https://www.linkedin.com/in/rex,,Elsewhere,Eng,01 Jan 2026"].join("\n");
+
+  const preview = await api.call("POST", "/api/import/linkedin/preview", { csv });
+  assert.equal(preview.status, 200);
+  assert.deepEqual([preview.body.summary.create, preview.body.summary.untracked], [1, 1]);
+  assert.equal((await api.call("GET", "/api/contacts")).body.contacts.length, 0);
+
+  const commit = await api.call("POST", "/api/import/linkedin/commit", { csv });
+  assert.equal(commit.body.created, 1);
+  assert.deepEqual((await api.call("GET", "/api/contacts")).body.contacts.map((c: { name: string; company: string }) => [c.name, c.company]), [["Priya Shah", "Stripe"]]);
+  assert.equal((await api.call("POST", "/api/import/linkedin/commit", { csv })).body.created, 0); // again: nothing new
+
+  // a real connections file is bigger than the usual 100 KB request limit; only this route allows it
+  const big = [header, ...Array.from({ length: 2500 }, (_, i) => `P${i},Q${i},https://www.linkedin.com/in/p${i},,Elsewhere,Engineer at a company,01 Jan 2026`)].join("\n");
+  assert.ok(big.length > 150_000);
+  const bigRes = await api.call("POST", "/api/import/linkedin/preview", { csv: big });
+  assert.equal(bigRes.status, 200);
+  assert.equal(bigRes.body.summary.untracked, 2500);
+  const tooBig = await api.call("POST", "/api/applications", { company: "x".repeat(200_000), roleTitle: "y" });
+  assert.equal(tooBig.status, 413);
+  assert.equal(tooBig.body.error, "too_large");
+
+  assert.equal((await api.call("POST", "/api/import/linkedin/preview", { csv: "not,a,connections file\n1,2,3" })).status, 400);
+  assert.equal((await api.call("POST", "/api/import/linkedin/preview", {})).status, 400);
+});

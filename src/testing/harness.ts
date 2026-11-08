@@ -9,7 +9,7 @@ import { createApplicationRepository } from "../repositories/applications.ts";
 import { createCompanyRepository } from "../repositories/companies.ts";
 import { createContactRepository } from "../repositories/contacts.ts";
 import { createSettingsRepository } from "../repositories/settings.ts";
-import { createImportLedger } from "../repositories/import-ledger.ts";
+import { createContactImportLedger, createImportLedger } from "../repositories/import-ledger.ts";
 import { createListRepository } from "../repositories/lists.ts";
 import { createApplicationService } from "../services/applications.ts";
 import { createCompanyService } from "../services/companies.ts";
@@ -19,6 +19,7 @@ import { createInsightsService } from "../services/insights.ts";
 import { createImportService } from "../services/import.ts";
 import type { CompanyDirectory } from "../domain/ports.ts";
 import type { SourceFactory } from "../services/import.ts";
+import { createLinkedInImportService } from "../services/linkedin-import.ts";
 import { createListService } from "../services/lists.ts";
 
 export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0), sources?: SourceFactory, directory?: CompanyDirectory) {
@@ -41,6 +42,8 @@ export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0), sources?:
   const contactRepo = createContactRepository(db);
   const settings = createSettingsService({ settings: createSettingsRepository(db) });
   const contacts = createContactService({ contacts: contactRepo, applications: applicationRepo, settings, clock });
+  const linkedinBackups: number[] = []; // counts how many times the "back up first" hook ran
+  const linkedin = createLinkedInImportService({ companies: companyRepo, contacts: contactRepo, contactService: contacts, ledger: createContactImportLedger(db), clock, beforeCommit: () => { linkedinBackups.push(1); } });
   const exports = createExportService({ applications: applicationRepo, lists: listRepo, companies: companyRepo, contacts: contactRepo, clock });
   const companies = createCompanyService({ companies: companyRepo, clock, directory: directory ?? { names: async () => ({ names: [], available: true }) } });
   const insights = createInsightsService({ applications: applicationRepo, lists: listRepo, contacts: contactRepo, clock });
@@ -51,6 +54,8 @@ export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0), sources?:
     contactRepo,
     contacts,
     settings,
+    linkedin,
+    linkedinBackups,
     companies,
     insights,
     lists,
@@ -66,7 +71,7 @@ export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0), sources?:
 
 export async function startApi(userId = 1, sources?: SourceFactory, directory?: CompanyDirectory) {
   const t = makeTracker(undefined, sources, directory);
-  const app = createApp({ applications: t.service, lists: t.lists, imports: t.imports, exports: t.exports, companies: t.companies, contacts: t.contacts, settings: t.settings, insights: t.insights, currentUserId: () => userId });
+  const app = createApp({ applications: t.service, lists: t.lists, imports: t.imports, exports: t.exports, companies: t.companies, contacts: t.contacts, settings: t.settings, linkedin: t.linkedin, insights: t.insights, currentUserId: () => userId });
   const server = await new Promise<import("node:http").Server>((resolve) => {
     const s = app.listen(0, () => resolve(s));
   });

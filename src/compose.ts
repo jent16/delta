@@ -14,7 +14,7 @@ import { createApplicationRepository } from "./repositories/applications.ts";
 import { createCompanyRepository } from "./repositories/companies.ts";
 import { createContactRepository } from "./repositories/contacts.ts";
 import { createSettingsRepository } from "./repositories/settings.ts";
-import { createImportLedger } from "./repositories/import-ledger.ts";
+import { createContactImportLedger, createImportLedger } from "./repositories/import-ledger.ts";
 import { createListRepository } from "./repositories/lists.ts";
 import { createApplicationService } from "./services/applications.ts";
 import { createCompanyService } from "./services/companies.ts";
@@ -22,6 +22,7 @@ import { createContactService, createSettingsService } from "./services/contacts
 import { createExportService } from "./services/export.ts";
 import { createInsightsService } from "./services/insights.ts";
 import { createImportService } from "./services/import.ts";
+import { createLinkedInImportService } from "./services/linkedin-import.ts";
 import { createListService } from "./services/lists.ts";
 
 export function composeTracker(opts: { dataDir: string; env?: NodeJS.ProcessEnv }) {
@@ -58,6 +59,8 @@ export function composeTracker(opts: { dataDir: string; env?: NodeJS.ProcessEnv 
   const contactRepo = createContactRepository(db);
   const settings = createSettingsService({ settings: createSettingsRepository(db) });
   const contacts = createContactService({ contacts: contactRepo, applications: applicationRepo, settings, clock });
+  // importing writes many rows, so an automatic backup is taken just before (labelled, so pruning never deletes it)
+  const linkedin = createLinkedInImportService({ companies: companyRepo, contacts: contactRepo, contactService: contacts, ledger: createContactImportLedger(db), clock, beforeCommit: () => { createBackup(db, backupDir, { label: "pre-import" }); } });
   const exports = createExportService({ applications: applicationRepo, lists: listRepo, companies: companyRepo, contacts: contactRepo, clock });
   const companies = createCompanyService({
     companies: companyRepo,
@@ -65,5 +68,5 @@ export function composeTracker(opts: { dataDir: string; env?: NodeJS.ProcessEnv 
     directory: createSimplifyDirectory({ cacheFile: join(opts.dataDir, "cache", "companies.json") }),
   });
   const insights = createInsightsService({ applications: applicationRepo, lists: listRepo, contacts: contactRepo, clock });
-  return { db, dbFile, backupDir, applications, lists, imports, exports, companies, contacts, settings, insights, migrationsApplied, preMigrationBackup: preMigrationBackup as BackupInfo | null };
+  return { db, dbFile, backupDir, applications, lists, imports, exports, companies, contacts, settings, linkedin, insights, migrationsApplied, preMigrationBackup: preMigrationBackup as BackupInfo | null };
 }

@@ -94,6 +94,13 @@ export interface CompanyDirectory {
   names(): Promise<{ names: string[]; available: boolean; note?: string }>;
 }
 
+/** Remembers which outside person became which contact. A deleted contact stays remembered (null), so re-importing never resurrects them. */
+export interface ContactImportLedger {
+  /** externalId -> contact id (or null if you have since deleted that contact), for everything imported from this source. */
+  known(userId: number, source: string): Map<string, number | null>;
+  record(userId: number, source: string, externalId: string, contactId: number, now: string): void;
+}
+
 /** Remembers which source row became which application, so importing twice never duplicates. */
 export interface ImportLedger {
   /** externalId -> application id, for everything already imported from this source. */

@@ -6,7 +6,7 @@ import { createApp } from "./api/app.ts";
 import { composeTracker } from "./compose.ts";
 import { backupIfStale } from "./db/backup.ts";
 
-const { db, backupDir, applications, lists, imports, exports, companies, contacts, settings, insights, migrationsApplied, preMigrationBackup } = composeTracker({
+const { db, backupDir, applications, lists, imports, exports, companies, contacts, settings, linkedin, insights, migrationsApplied, preMigrationBackup } = composeTracker({
   dataDir: process.env.DELTA_DATA_DIR ?? join(process.cwd(), "var"),
 });
 if (preMigrationBackup) console.log(`backed up before migrating: ${preMigrationBackup.file}`);
@@ -25,7 +25,7 @@ const autoBackup = () => {
 autoBackup();
 setInterval(autoBackup, 6 * 3_600_000).unref();
 
-const app = createApp({ applications, lists, imports, exports, companies, contacts, settings, insights, currentUserId: () => 1, webRoot: fileURLToPath(new URL("./web/", import.meta.url)) });
+const app = createApp({ applications, lists, imports, exports, companies, contacts, settings, linkedin, insights, currentUserId: () => 1, webRoot: fileURLToPath(new URL("./web/", import.meta.url)) });
 const port = Number(process.env.TRACKER_PORT) || 3001;
 // There is no login yet, so listen on this machine only. (Without a host, Node accepts connections from the whole
 // network: anyone on the same Wi-Fi could read and change your applications.) Set TRACKER_HOST deliberately to open it up.

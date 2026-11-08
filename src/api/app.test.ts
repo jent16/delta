@@ -175,3 +175,34 @@ test("bulk status change over HTTP", async (t) => {
   assert.equal(ok.body.applications[0].status, "ghosted");
   assert.equal((await api.call("POST", "/api/applications/bulk/status", { ids: [999], status: "ghosted" })).status, 404);
 });
+
+test("GET /api/pipeline returns rows with progress, honours list scoping, and rejects a bad list", async (t) => {
+  const api = await startApi();
+  t.after(() => api.close());
+  const a = (await api.call("POST", "/api/applications", { company: "Stripe", roleTitle: "SWE", roleFunction: "SWE" })).body;
+  await api.call("POST", `/api/applications/${a.id}/status`, { status: "applied" });
+  await api.call("POST", `/api/applications/${a.id}/status`, { status: "interview" });
+  await api.call("POST", `/api/applications/${a.id}/status`, { status: "rejected" });
+  await api.call("POST", "/api/applications", { company: "Shopify", roleTitle: "PM", roleFunction: "PM" });
+
+  const all = await api.call("GET", "/api/pipeline");
+  assert.equal(all.status, 200);
+  assert.equal(all.body.rows.length, 2);
+  const stripe = all.body.rows.find((r: { application: { company: string } }) => r.application.company === "Stripe");
+  assert.deepEqual(stripe.progress, { level: 3, outcome: "rejected" });
+
+  const pmList = (await api.call("GET", "/api/lists")).body.lists.find((l: { name: string }) => l.name === "PM");
+  const pm = await api.call("GET", `/api/pipeline?list=${pmList.id}`);
+  assert.deepEqual(pm.body.rows.map((r: { application: { company: string } }) => r.application.company), ["Shopify"]);
+
+  assert.equal((await api.call("GET", "/api/pipeline?list=abc")).status, 400);
+  assert.equal((await api.call("GET", "/api/pipeline?list=999")).status, 404);
+});
+
+test("GET /api/stats includes the weekly applied counts", async (t) => {
+  const api = await startApi();
+  t.after(() => api.close());
+  await api.call("POST", "/api/applications", { company: "Stripe", roleTitle: "SWE", appliedOn: "2026-09-14" });
+  const { body } = await api.call("GET", "/api/stats");
+  assert.deepEqual(body.stats.appliedByWeek, [{ weekStart: "2026-09-14", count: 1 }]);
+});

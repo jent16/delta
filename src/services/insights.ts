@@ -3,13 +3,15 @@
 // filters the application list takes.
 
 import { parseApplicationQuery } from "../domain/application.ts";
-import type { ApplicationQuery } from "../domain/application.ts";
+import type { Application, ApplicationQuery } from "../domain/application.ts";
 import { toIsoDate } from "../domain/dates.ts";
 import { NotFoundError, ValidationError } from "../domain/errors.ts";
 import { narrowQuery } from "../domain/list.ts";
 import type { ApplicationRepository, ListRepository } from "../domain/ports.ts";
 import { computeReminders, DEFAULT_REMINDERS } from "../domain/reminders.ts";
 import type { Reminders } from "../domain/reminders.ts";
+import { computeProgress } from "../domain/progress.ts";
+import type { Progress } from "../domain/progress.ts";
 import { computeStats } from "../domain/stats.ts";
 import type { Stats } from "../domain/stats.ts";
 import type { Clock } from "./applications.ts";
@@ -17,6 +19,8 @@ import type { Clock } from "./applications.ts";
 export interface InsightsService {
   stats(userId: number, raw: Record<string, unknown>): { scope: { list: { id: number; name: string } | null }; stats: Stats };
   reminders(userId: number, raw: Record<string, unknown>): { scope: { list: { id: number; name: string } | null }; reminders: Reminders };
+  /** The table: each application with how far it got, newest activity first. Same scoping and filters as stats. */
+  pipeline(userId: number, raw: Record<string, unknown>): { scope: { list: { id: number; name: string } | null }; rows: { application: Application; progress: Progress }[] };
 }
 
 export function createInsightsService(deps: { applications: ApplicationRepository; lists: ListRepository; clock: Clock }): InsightsService {
@@ -44,6 +48,14 @@ export function createInsightsService(deps: { applications: ApplicationRepositor
     stats(userId, raw) {
       const { query, list } = scope(userId, raw);
       return { scope: { list }, stats: computeStats(query ? applications.withHistory(userId, query) : []) };
+    },
+
+    pipeline(userId, raw) {
+      const { query, list } = scope(userId, raw);
+      const rows = (query ? applications.withHistory(userId, query) : [])
+        .map(({ application, history }) => ({ application, progress: computeProgress(history, application.status) }))
+        .sort((a, b) => b.application.updatedAt.localeCompare(a.application.updatedAt) || b.application.id - a.application.id);
+      return { scope: { list }, rows };
     },
 
     reminders(userId, raw) {

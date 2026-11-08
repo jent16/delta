@@ -83,3 +83,30 @@ test("breakdowns: by current status, function and sector (unknown sector is its 
   assert.deepEqual(s.byFunction, { SWE: 2, PM: 1 });
   assert.deepEqual(s.bySector, { Finance: 2, Unknown: 1 });
 });
+
+test("applied-per-week: counted on the FIRST applied date, grouped by Monday, empty weeks included", () => {
+  const s = computeStats([
+    row([["applied", "2026-09-14"]]),                                   // Monday
+    row([["applied", "2026-09-20"]]),                                   // Sunday of the same week
+    row([["saved", "2026-08-01"], ["applied", "2026-09-30"]]),          // two weeks later; the saved date is ignored
+    row([["applied", "2026-09-22"], ["ghosted", "2026-10-20"], ["interview", "2026-10-25"]]), // revived: still one application, in its first week
+    row([["saved", "2026-09-01"]]),                                     // never applied: not in any week
+  ]);
+  assert.deepEqual(s.appliedByWeek, [
+    { weekStart: "2026-09-14", count: 2 },
+    { weekStart: "2026-09-21", count: 1 },
+    { weekStart: "2026-09-28", count: 1 },
+  ]);
+  const gap = computeStats([row([["applied", "2026-09-01"]]), row([["applied", "2026-09-22"]])]);
+  assert.deepEqual(gap.appliedByWeek.map((w) => [w.weekStart, w.count]), [["2026-08-31", 1], ["2026-09-07", 0], ["2026-09-14", 0], ["2026-09-21", 1]]);
+});
+
+test("applied-per-week: an application applied twice counts once, on the earlier date", () => {
+  const s = computeStats([row([["applied", "2026-09-28"], ["applied", "2026-09-01"]])]);
+  assert.deepEqual(s.appliedByWeek, [{ weekStart: "2026-08-31", count: 1 }]);
+});
+
+test("applied-per-week is empty when nothing was sent", () => {
+  assert.deepEqual(computeStats([]).appliedByWeek, []);
+  assert.deepEqual(computeStats([row([["saved", "2026-09-01"]])]).appliedByWeek, []);
+});

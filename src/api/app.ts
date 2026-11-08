@@ -26,6 +26,8 @@ export interface AppDeps {
    * and nothing below it changes, because every service call already takes a userId.
    */
   currentUserId: (req: Request) => number;
+  /** Folder of the web UI's static files (index.html, JS, CSS). Omitted in API-only tests. */
+  webRoot?: string;
 }
 
 const idParam = (req: Request): number => {
@@ -49,7 +51,7 @@ const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
 };
 
 export function createApp(deps: AppDeps) {
-  const { applications, lists, imports, exports: exporter, companies, insights, currentUserId } = deps;
+  const { applications, lists, imports, exports: exporter, companies, insights, currentUserId, webRoot } = deps;
   const app = express();
   app.use(express.json());
 
@@ -136,6 +138,10 @@ export function createApp(deps: AppDeps) {
   });
 
   // --- how it's going, and what needs attention ---
+  app.get("/api/pipeline", (req, res) => {
+    res.json(insights.pipeline(currentUserId(req), req.query as Record<string, unknown>));
+  });
+
   app.get("/api/stats", (req, res) => {
     res.json(insights.stats(currentUserId(req), req.query as Record<string, unknown>));
   });
@@ -156,6 +162,25 @@ export function createApp(deps: AppDeps) {
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.type("text/csv; charset=utf-8").send(body);
   });
+
+  // --- the web UI: plain static files ---
+  if (webRoot) {
+    // Everything on screen is text from your own data (some of it imported from elsewhere), so the page may
+    // only run scripts from this server and may not send data anywhere else. Belt and braces with the UI
+    // never using innerHTML.
+    app.use((req, res, next) => {
+      if (!req.path.startsWith("/api/")) {
+        res.setHeader(
+          "Content-Security-Policy",
+          "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+        );
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("Referrer-Policy", "no-referrer");
+      }
+      next();
+    });
+    app.use(express.static(webRoot, { index: "index.html" }));
+  }
 
   app.use(errorHandler);
   return app;

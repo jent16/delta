@@ -13,7 +13,7 @@
 //                 from Notion have approximate rejection dates (see decisions.md).
 
 import type { ExportedApplication } from "./export.ts";
-import { daysBetween } from "./dates.ts";
+import { addDays, daysBetween, weekStart } from "./dates.ts";
 import { STATUSES } from "./status.ts";
 import type { Status } from "./status.ts";
 
@@ -25,6 +25,8 @@ export interface Stats {
   funnel: { applied: number; assessment: number; interview: number; offer: number };
   response: { applied: number; responded: number; rate: number | null };
   daysToFirstResponse: { median: number | null; samples: number };
+  /** Applications sent per week (weeks start Monday), with empty weeks included so a chart has no gaps. */
+  appliedByWeek: { weekStart: string; count: number }[];
 }
 
 const REACHED_ASSESSMENT: Status[] = ["assessment", "interview", "offer"];
@@ -45,6 +47,7 @@ export function computeStats(rows: ExportedApplication[]): Stats {
   const funnel = { applied: 0, assessment: 0, interview: 0, offer: 0 };
   let responded = 0;
   const waits: number[] = [];
+  const perWeek = new Map<string, number>();
 
   for (const { application: a, history } of rows) {
     byStatus[a.status]++;
@@ -56,6 +59,8 @@ export function computeStats(rows: ExportedApplication[]): Stats {
     const appliedEvents = history.filter((e) => e.status === "applied");
     if (!appliedEvents.length) continue;
     funnel.applied++;
+    const week = weekStart(appliedEvents.map((e) => e.occurredOn).sort()[0]!);
+    perWeek.set(week, (perWeek.get(week) ?? 0) + 1);
     if (has(REACHED_ASSESSMENT)) funnel.assessment++;
     if (has(REACHED_INTERVIEW)) funnel.interview++;
     if (history.some((e) => e.status === "offer")) funnel.offer++;
@@ -70,6 +75,12 @@ export function computeStats(rows: ExportedApplication[]): Stats {
     }
   }
 
+  const appliedByWeek: Stats["appliedByWeek"] = [];
+  const weeks = [...perWeek.keys()].sort();
+  if (weeks.length) {
+    for (let w = weeks[0]!; w <= weeks[weeks.length - 1]!; w = addDays(w, 7)) appliedByWeek.push({ weekStart: w, count: perWeek.get(w) ?? 0 });
+  }
+
   return {
     total: rows.length,
     byStatus,
@@ -78,5 +89,6 @@ export function computeStats(rows: ExportedApplication[]): Stats {
     funnel,
     response: { applied: funnel.applied, responded, rate: funnel.applied ? Math.round((responded / funnel.applied) * 1000) / 1000 : null },
     daysToFirstResponse: { median: median(waits), samples: waits.length },
+    appliedByWeek,
   };
 }

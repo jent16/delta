@@ -32,3 +32,10 @@ export function addDays(iso: string, days: number): string {
   const d = new Date(toUtc(iso) + days * 86_400_000);
   return d.toISOString().slice(0, 10);
 }
+
+/** The Monday of the week containing `iso` (weeks start on Monday). */
+export function weekStart(iso: string): string {
+  const d = new Date(toUtc(iso));
+  const sinceMonday = (d.getUTCDay() + 6) % 7; // Sunday=0 -> 6, Monday=1 -> 0
+  return addDays(iso, -sinceMonday);
+}

@@ -1,5 +1,6 @@
 // The web server's entry point. All wiring lives in compose.ts.
 
+import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { createApp } from "./api/app.ts";
 import { composeTracker } from "./compose.ts";
@@ -24,7 +25,7 @@ const autoBackup = () => {
 autoBackup();
 setInterval(autoBackup, 6 * 3_600_000).unref();
 
-const app = createApp({ applications, lists, imports, exports, companies, insights, currentUserId: () => 1 });
+const app = createApp({ applications, lists, imports, exports, companies, insights, currentUserId: () => 1, webRoot: fileURLToPath(new URL("./web/", import.meta.url)) });
 const port = Number(process.env.TRACKER_PORT) || 3001;
 const server = app.listen(port, () => console.log(`Tracker API on http://localhost:${port}`));
 

@@ -101,3 +101,58 @@ test("the stylesheet is well-formed and every design/mode the menu offers has CS
 test("the pieces a screen needs exist: the page has the containers app.js draws into", () => {
   for (const id of ["topbar", "view", "scrim", "drawer", "modal", "bulk", "toast"]) assert.match(html, new RegExp(`id="${id}"`), id);
 });
+
+// ---------- motion ----------
+const stripCss = (text: string) => text.replace(/\/\*[\s\S]*?\*\//g, "");
+
+test("no bounce in everyday UI: no spring/bounce/elastic/overshoot, and no easing curve that leaves 0..1", () => {
+  const sources = [stripCss(css), ...js.map(code)];
+  for (const text of sources) {
+    assert.doesNotMatch(text, /\b(spring|bounce|elastic|overshoot|back-out|easeOutBack)\b/i);
+    for (const m of text.matchAll(/cubic-bezier\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/g)) {
+      const [x1, y1, x2, y2] = [m[1], m[2], m[3], m[4]].map(Number) as [number, number, number, number];
+      for (const v of [x1, y1, x2, y2]) assert.ok(v >= 0 && v <= 1, `${m[0]} leaves 0..1 (it would overshoot)`);
+    }
+  }
+});
+
+test("every animation goes through lib/motion.js, which is the one place that honours 'reduce motion'", () => {
+  const offenders = js.filter((f) => !f.endsWith("lib/motion.js") && /\.animate\s*\(/.test(code(f))).map(rel);
+  assert.deepEqual(offenders, []);
+  const motion = code(join(WEB, "lib/motion.js"));
+  assert.match(motion, /prefers-reduced-motion: reduce/);
+  assert.match(motion, /if \(reduced\(\)/); // play() and the helpers check it
+  // and the CSS side: with reduce-motion on, hover/press transitions are effectively off and the press does not scale
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\*,[^}]*transition-duration:\s*0\.01ms/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[^@]*:active[^{]*\{\s*transform:\s*none/);
+});
+
+test("durations come from one table: no screen or panel types a number of milliseconds of its own", () => {
+  const offenders = js.filter((f) => !f.endsWith("lib/motion-math.js") && /\bduration:\s*\d/.test(code(f))).map(rel);
+  assert.deepEqual(offenders, []);
+});
+
+test("CSS transitions stay within 150-250 ms (the quick 0s/0.01ms values are the 'no tween while held' and reduced-motion rules)", () => {
+  const text = stripCss(css);
+  const ms = [...text.matchAll(/(?<![\w.#-])(\d+(?:\.\d+)?)ms\b/g)].map((m) => Number(m[1]));
+  assert.ok(ms.length >= 2);
+  for (const v of ms) assert.ok(v === 0.01 || (v >= 150 && v <= 250), `${v}ms`);
+  // a duration in seconds is allowed only as 0s, or the one slow highlight that tells you which row you just added
+  const seconds = [...text.matchAll(/(?<![\w.#-])(\d*\.?\d+)s\b/g)].map((m) => m[1]).filter((v) => Number(v) !== 0);
+  assert.deepEqual(seconds, ["1.8"]);
+});
+
+test("pressing scales to .97, and the scale is not tweened while held", () => {
+  assert.match(css, /--press-scale:\s*\.97/);
+  const rule = /\.btn:active[^{]*\{([^}]*)\}/.exec(css)?.[1] ?? "";
+  assert.match(rule, /transform:\s*scale\(var\(--press-scale\)\)/);
+  assert.match(rule, /transition-duration:\s*0s/); // first value is the transform's: instant while held; the others keep colours easing
+});
+
+test("things that are centred with `transform` cannot be animated with transform, so the animated panels are centred another way", () => {
+  for (const sel of [".modal", ".bulk", ".toast"]) {
+    const rule = new RegExp(`(?:^|\\n)\\${sel}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? "";
+    assert.ok(rule, sel);
+    assert.doesNotMatch(rule, /transform:\s*translateX\(-50%\)/, `${sel} is centred with a transform that an entrance animation would overwrite`);
+  }
+});

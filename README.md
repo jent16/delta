@@ -87,6 +87,12 @@ writes through the same API as everything else.
 - **New application.** A company box that suggests your own companies first, then a
   directory, and forgives typos.
 - **Reminders.** Follow-ups due, deadlines, and applications that have gone quiet.
+- **Motion.** Menus grow from the button that opened them; the detail panel slides
+  in while the company logo flies from its row (and back); screens overlap as they
+  change and arrive row by row; the tab highlight stretches as it slides; dragging the
+  panel's header dismisses it, with a rubber-band resist the wrong way. Everything
+  respects the device's "reduce motion" setting. The rules live in
+  [`src/web/lib/motion-math.js`](src/web/lib/motion-math.js) and are tested.
 - **Appearance.** Light, dark (Google's dark greys) or follow the device, and a
   choice of design: Soft pastel (default), Vibrant, Ocean. Remembered per browser.
 

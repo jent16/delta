@@ -81,8 +81,8 @@ with its own rebuildable `delta.db`.
   silent applications ghosted) and a first pass classifying sectors (113 of 130 set).
 - **4 UI (first version done).** Built last on purpose, on a finished and tested
   API, because looks change and behaviour shouldn't. Plain files in `src/web/`,
-  served by the same process. Still to do here: animations and "feel" (waiting for
-  your instructions), self-hosted fonts, and the small gaps listed below.
+  served by the same process. Motion is in (decision 36). Still to do here: self-hosted
+  fonts, and the small gaps listed below.
 - **5 Insights.** Applied -> assessment -> interview funnel per list, how long
   applications sit in each stage, which source/resume version converts.
 - **6 Contacts.** People at companies, link them to applications, "find alumni"

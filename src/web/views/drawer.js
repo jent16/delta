@@ -6,14 +6,24 @@ import { api, describeError } from "../lib/api.js";
 import { $, clear, h, icon } from "../lib/dom.js";
 import { ctx } from "../lib/ctx.js";
 import { shortDate } from "../lib/format.js";
-import { closeOverlays, openOverlay } from "../lib/overlay.js";
+import { cancelMotion, crossfade, flyBetween, reduced, settle, staggerIn } from "../lib/motion.js";
+import { DURATION, exitDuration, rubberBand } from "../lib/motion-math.js";
+import { closeOverlays, onClosing, openOverlay } from "../lib/overlay.js";
 import { label, movesFrom, vocab } from "../lib/state.js";
 import { chip, logo, progressBar, toast } from "../lib/ui.js";
 
-export async function openDrawer(id) {
+let currentId = null;
+
+// the logo in the table row (or attention card) that was clicked, so it can fly into the panel
+const logoNear = (from) => from?.closest?.("tr, .attn-item")?.querySelector(".logo") ?? from?.querySelector?.(".logo") ?? null;
+const logoForApp = (id) => document.querySelector(`[data-app-id="${id}"] .logo`);
+const onScreen = (el) => { const r = el.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth; };
+
+/** `from` is the element that was clicked (optional): the panel grows out of it. */
+export async function openDrawer(id, from) {
   try {
     const detail = await api.application(id);
-    draw(detail);
+    draw(detail, from);
   } catch (e) {
     toast(describeError(e), true);
   }
@@ -31,11 +41,12 @@ const FIELDS = [
   { key: "url", name: "Link to the posting", kind: "url", wide: true, placeholder: "https://…" },
 ];
 
-function draw({ application: a, events, progress }) {
+function draw({ application: a, events, progress }, from) {
+  currentId = a.id;
   const drawer = clear($("#drawer"));
   const next = movesFrom(a.status);
 
-  const refreshHere = async () => { await ctx.refresh(); openDrawer(a.id); };
+  const refreshHere = async () => { await ctx.refresh(); openDrawer(a.id); }; // redrawn in place: old and new overlap
   const change = async (promise, message) => {
     try { await promise; toast(message); await refreshHere(); } catch (e) { toast(describeError(e), true); }
   };
@@ -99,17 +110,78 @@ function draw({ application: a, events, progress }) {
   };
 
   const close = h("button", { class: "btn small closebtn", type: "button", "aria-label": "Close details", onclick: closeOverlays }, icon("x", 14), "Close");
-  drawer.append(
-    h("div", { class: "drawer-head" },
-      h("div", { class: "dh-top" }, close),
-      h("div", { class: "dh-main" }, logo(a.company), h("div", { class: "drawer-title" }, h("h2", { text: a.company }), h("p", { text: a.roleTitle })))),
-    h("div", { class: "drawer-body" },
-      h("div", { class: "sect" }, h("h3", { text: "Status" }),
-        h("div", { class: "status-row" }, chip(a.status), h("div", {}, progressBar(progress, true), h("div", { class: "stage-names" }, vocab.progressStages.map((s) => h("span", { text: s }))))),
-        next.length ? h("h3", { text: "Move to" }) : null, moves),
-      h("div", { class: "sect" }, h("h3", { text: "Details" }), h("p", { class: "note-line", text: appliedOn ? `Applied ${shortDate(appliedOn)}.` : "Not applied yet." }), grid),
-      h("div", { class: "sect" }, h("h3", { text: "History" }), timeline),
-      h("div", { class: "sect" }, h("h3", { text: "Notes" }), notes),
-      h("div", {}, h("button", { class: "btn small", type: "button", text: "Archive", onclick: archive }))));
-  openOverlay(drawer, close);
+  const head = h("div", { class: "drawer-head" },
+    h("div", { class: "dh-top" }, close),
+    h("div", { class: "dh-main" }, logo(a.company), h("div", { class: "drawer-title" }, h("h2", { text: a.company }), h("p", { text: a.roleTitle }))));
+  const body = h("div", { class: "drawer-body" },
+    h("div", { class: "sect" }, h("h3", { text: "Status" }),
+      h("div", { class: "status-row" }, chip(a.status), h("div", {}, progressBar(progress, true), h("div", { class: "stage-names" }, vocab.progressStages.map((s) => h("span", { text: s }))))),
+      next.length ? h("h3", { text: "Move to" }) : null, moves),
+    h("div", { class: "sect" }, h("h3", { text: "Details" }), h("p", { class: "note-line", text: appliedOn ? `Applied ${shortDate(appliedOn)}.` : "Not applied yet." }), grid),
+    h("div", { class: "sect" }, h("h3", { text: "History" }), timeline),
+    h("div", { class: "sect" }, h("h3", { text: "Notes" }), notes),
+    h("div", { class: "sect" }, h("button", { class: "btn small", type: "button", text: "Archive", onclick: archive })));
+
+  const wasOpen = !drawer.hidden && drawer._leaving == null;
+  const scrolled = drawer.querySelector(".drawer-body")?.scrollTop ?? 0;
+  if (wasOpen) {
+    crossfade(drawer, () => drawer.append(head, body)); // a redraw (after a status change): old and new share the screen for a moment
+    body.scrollTop = scrolled;
+  } else {
+    clear(drawer).append(head, body);
+  }
+  const newlyOpened = openOverlay(drawer, close);
+  if (newlyOpened) {
+    // the logo in the row you clicked travels into the panel's header, and the details settle in one after another
+    flyBetween(logoNear(from) ?? logoForApp(a.id), $(".drawer-head .logo", drawer));
+    staggerIn(body.children, { base: 90 });
+  }
+  attachDrag(drawer, head);
+}
+
+// closing: the panel's logo travels back to its row (if that row is still on screen)
+onClosing("drawer", () => {
+  const mine = $(".drawer-head .logo", $("#drawer"));
+  const row = currentId == null ? null : logoForApp(currentId);
+  if (mine && row && onScreen(row)) flyBetween(mine, row, { duration: exitDuration(DURATION.move), hideTarget: false, hideSource: true });
+});
+
+// ---- drag the header to dismiss. While held it follows the hand exactly (no tweening); pulled the
+// wrong way (past where it rests) it resists like a rubber band; let go and it either leaves or eases home.
+function attachDrag(drawer, head) {
+  let drag = null;
+  const scrim = $("#scrim");
+  head.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || e.target.closest("button")) return;
+    cancelMotion(drawer);
+    drag = { id: e.pointerId, x0: e.clientX, last: e.clientX, lastT: e.timeStamp, v: 0 };
+    drawer._dragX = 0;
+    head.setPointerCapture(e.pointerId);
+    head.classList.add("held");
+  });
+  head.addEventListener("pointermove", (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const raw = e.clientX - drag.x0;
+    const offset = raw >= 0 ? raw : -rubberBand(-raw, 48);
+    drawer._dragX = offset;
+    drawer.style.transform = `translateX(${offset}px)`;
+    scrim.style.opacity = String(Math.max(0, 1 - Math.max(0, offset) / drawer.offsetWidth));
+    drag.v = (e.clientX - drag.last) / Math.max(1, e.timeStamp - drag.lastT); // px per ms, to tell a flick from a slow drag
+    drag.last = e.clientX; drag.lastT = e.timeStamp;
+  });
+  const release = (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const flick = drag.v; // read before forgetting the drag
+    drag = null;
+    head.classList.remove("held");
+    const offset = drawer._dragX ?? 0;
+    // dragged more than 30% of the way, or flicked to the right: it leaves, carrying on from where the hand let go
+    if (offset > 0 && e.type === "pointerup" && (offset > drawer.offsetWidth * 0.3 || flick > 0.6)) { closeOverlays(); return; }
+    drawer.style.transform = "";
+    drawer._dragX = 0;
+    scrim.style.opacity = "";
+    if (offset && !reduced()) settle(drawer, offset); // otherwise it eases home: ease-out, no bounce
+  };
+  head.addEventListener("pointerup", release);
+  head.addEventListener("pointercancel", release);
 }

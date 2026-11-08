@@ -312,3 +312,32 @@ Tiles, panels and chips are derived from those, so a new design is about ten lin
 and cannot break dark mode. Soft pastel (the Hilos-style look) is the default. The
 choice is remembered per browser; a classic `theme-init.js` applies it before first
 paint so there is no flash of the wrong theme.
+
+## 36. Motion is a small set of rules in one file, and a test fails if one is broken
+The rules (written down by you, kept in `src/web/lib/motion-math.js`): entrances ease
+out, moves ease in-out, exits ease in; popovers and dropdowns take 150-250 ms and
+start at .95 scale, growing from the button that opened them and shrinking back
+into it; exits are 20% shorter than entrances (computed, never typed in); rows
+stagger by 30 ms; presses scale to .97; a moving knob stretches 12% and lifts a
+hair mid-flight; things that travel go along an arc; nothing bounces; old and new
+states overlap rather than taking turns; reveals use masks (a clip wipe for bars, a
+circle spreading from the Appearance button for colour changes); icons crossfade
+with a little blur; pulling something past its limit resists like a rubber band;
+and anything held follows the hand with no tween.
+**How it is enforced.** The numbers and curves are pure functions with unit tests
+(`src/web-motion.test.ts`). `src/web.test.ts` fails if any curve leaves 0..1, any
+CSS transition leaves 150-250 ms, a screen types its own duration, anything calls
+`.animate()` outside `lib/motion.js` (the one place that honours "reduce motion"),
+the press stops being instant while held, or an animated panel is centred with a
+`transform` (an entrance animation would silently overwrite it).
+**Two things worth knowing.**
+1. Exits wait for their animation, so a hidden or background tab (whose animation
+   clock stands still) would leave a closed panel invisible but still present and
+   catching clicks. Every animation therefore also resolves on a timer.
+2. Where the UI has no literal "knob" the rule is applied to the nearest thing: the
+   highlight that slides between tabs. "Enter from the trigger" means a popover or the
+   form grows from its button; the side drawer instead receives the company logo
+   flying from the row you clicked, which is the same idea at a size that works.
+Rows beyond the twelfth are not staggered: waiting 30 ms per row would make a
+130-row table feel slow, so the rest simply appear.
+

@@ -4,6 +4,8 @@
 import { api, describeError } from "./lib/api.js";
 import { $, clear, h, icon } from "./lib/dom.js";
 import { ctx } from "./lib/ctx.js";
+import { crossfade, placeKnobs, reduced, reveal, revealColor, staggerIn } from "./lib/motion.js";
+import { DURATION, STAGGER } from "./lib/motion-math.js";
 import { closeOverlays, overlayIsOpen } from "./lib/overlay.js";
 import { setVocab, state } from "./lib/state.js";
 import { applyLook, DESIGNS, look, MODES, setLook } from "./lib/theme.js";
@@ -25,14 +27,15 @@ function renderTop() {
     icon(ic, 15), name, view === "reminders" ? h("span", { class: "badge", id: "badge", text: String(badgeCount), hidden: badgeCount === 0 }) : null);
   clear($("#topbar")).append(
     h("div", { class: "brand" }, h("span", { class: "brand-mark" }, icon("delta", 16)), "Delta"),
-    h("nav", { class: "nav", "aria-label": "Main" }, nav("grid", "Dashboard", "dashboard"), nav("rows", "Applications", "applications"), nav("bell", "Reminders", "reminders")),
+    h("nav", { class: "nav", "aria-label": "Main", "data-knob": "nav" }, nav("grid", "Dashboard", "dashboard"), nav("rows", "Applications", "applications"), nav("bell", "Reminders", "reminders")),
     h("button", { class: "btn small appearance", type: "button", "aria-haspopup": "menu", "aria-label": "Appearance: mode and design", onclick: (e) => { e.stopPropagation(); appearanceMenu(e.currentTarget); } }, icon("palette", 15), "Appearance"));
 }
 
 function appearanceMenu(anchor) {
+  const choose = (key, value) => () => revealColor(anchor, () => setLook(key, value)); // the new colours spread out from the button
   openMenu(anchor, null, [
-    { heading: "Mode" }, ...MODES.map(([value, name]) => ({ label: name, checked: look.mode === value, run: () => setLook("mode", value) })),
-    { heading: "Design" }, ...DESIGNS.map(([value, name]) => ({ label: name, checked: look.design === value, run: () => setLook("design", value) })),
+    { heading: "Mode" }, ...MODES.map(([value, name]) => ({ label: name, checked: look.mode === value, run: choose("mode", value) })),
+    { heading: "Design" }, ...DESIGNS.map(([value, name]) => ({ label: name, checked: look.design === value, run: choose("design", value) })),
   ]);
 }
 
@@ -47,32 +50,47 @@ async function refreshBadge() {
 }
 
 // ---------- screens ----------
-async function render() {
+// mode: "none"  a refresh after a change: swap in place, no animation (it would flicker)
+//       "swap"  a tab change within a screen: old and new overlap briefly
+//       "enter" a different screen: old and new overlap, and the new content arrives piece by piece
+async function render(mode = "none") {
   const token = ++renderToken; // if you click around quickly, only the newest request is allowed to draw
   renderTop();
+  placeKnobs($("#topbar"));
   const container = $("#view");
   if (state.view !== "applications") leaveApplications();
   if (!container.firstChild) showMessage(container, "Loading…");
   try {
     const node = await SCREENS[state.view]();
     if (token !== renderToken) return;
-    clear(container).append(node);
+    const hadContent = container.firstChild && !container.querySelector(":scope > .state-msg");
+    if (mode === "none" || !hadContent || reduced()) clear(container).append(node);
+    else crossfade(container, () => container.append(node), { duration: mode === "enter" ? DURATION.screen : DURATION.swap });
+    placeKnobs(container);
+    if (mode === "enter" || !hadContent) playEntrance(node);
   } catch (e) {
     if (token !== renderToken) return;
-    showMessage(container, describeError(e), { error: true, retry: render });
+    showMessage(container, describeError(e), { error: true, retry: () => render() });
   }
   refreshBadge();
 }
 
+/** A screen arrives piece by piece (30 ms apart, only the first few), and bars and fills are uncovered by a mask. */
+function playEntrance(node) {
+  staggerIn(node.querySelectorAll(":scope > .head, .tiles > .tile, .grid-2 > .panel, .stack > .panel, .seg, .chips, .tablewrap tbody tr"));
+  node.querySelectorAll("[data-reveal]").forEach((el, i) => reveal(el, el.dataset.reveal, { delay: 180 + Math.min(i, STAGGER.max) * STAGGER.step }));
+}
+
 function navigate(view, list) {
+  const mode = view !== state.view ? "enter" : list !== undefined && list !== state.list ? "swap" : "none";
   if (view !== state.view || list !== undefined) state.selected.clear();
   state.view = view;
   if (list !== undefined) state.list = list;
   if (location.hash.slice(1) !== view) history.replaceState(null, "", `#${view}`);
-  return render();
+  return render(mode);
 }
 
-ctx.refresh = render;
+ctx.refresh = (mode) => render(mode);
 ctx.navigate = navigate;
 ctx.openApplication = openDrawer;
 ctx.openNew = openNewApplication;
@@ -100,7 +118,7 @@ if (start in SCREENS) state.view = start;
 renderTop();
 try {
   setVocab(await api.vocab()); // the status rules and closed lists come from the server, so they can never disagree with it
-  await render();
+  await render("enter");
 } catch (e) {
   showMessage($("#view"), describeError(e), { error: true, retry: () => location.reload() });
 }

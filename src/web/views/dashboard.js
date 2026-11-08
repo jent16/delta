@@ -38,7 +38,7 @@ export async function dashboardView() {
     .forEach(([name, n, color]) => {
       const pct = sent ? Math.round((n / sent) * 100) : 0;
       funnel.append(h("div", { class: "card f-row" }, h("div", { class: "f-label", text: name }),
-        h("div", { class: "f-track" }, h("div", { class: "f-fill", vars: { "--c": color, width: `${pct}%` } })),
+        h("div", { class: "f-track" }, h("div", { class: "f-fill", "data-reveal": "x", vars: { "--c": color, width: `${pct}%` } })),
         h("div", { class: "f-val" }, String(n), h("span", { text: ` · ${pct}%` }))));
     });
   const median = s.daysToFirstResponse.median;
@@ -67,7 +67,7 @@ export async function dashboardView() {
   weeks.forEach((w, i) => {
     const n = counts.get(w) ?? 0;
     bars.append(h("div", { class: `bar${i === weeks.length - 1 ? " now" : ""}${n ? "" : " zero"}`, title: `Week of ${shortDate(w)}: ${n} sent` },
-      h("b", { text: String(n) }), h("i", { vars: { height: `${Math.round((n / max) * 100)}%` } })));
+      h("b", { text: String(n) }), h("i", { "data-reveal": "y", vars: { height: `${Math.round((n / max) * 100)}%` } })));
     labels.append(h("span", { text: i % 2 === 0 ? shortDate(w) : "" }));
   });
   const earlier = sent - shown;

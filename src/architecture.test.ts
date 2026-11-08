@@ -24,6 +24,7 @@ const ALLOWED: Record<string, string[]> = {
   importers: ["domain", "importers"],
   services: ["domain", "services"],
   api: ["services", "domain", "api"],
+  web: ["web"], // the browser UI is plain JS; only .d.ts files (types for its pure helpers) are TypeScript, and they import nothing
 };
 
 function walk(dir: string): string[] {

@@ -58,6 +58,10 @@
   --panel-butter: color-mix(in srgb, var(--hue-2) var(--panel-mix), var(--surface));
   --panel-butter-line: color-mix(in srgb, var(--hue-2) var(--panel-line-mix), var(--surface));
   --tile-salmon: var(--hue-1); --tile-butter: var(--hue-2); --tile-pink: var(--hue-3); --tile-blue: var(--hue-4);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --t-hover: 150ms;
+  --t-release: 160ms;
+  --press-scale: .97;
   color-scheme: light;
 }
 /* design: vibrant */
@@ -148,10 +152,11 @@ button { cursor: pointer; }
 .topbar { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; margin-bottom: 34px; }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; letter-spacing: -.01em; margin-right: 14px; }
 .brand-mark { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: var(--accent-fg); display: grid; place-items: center; }
-.nav { display: flex; gap: 2px; flex-wrap: wrap; }
-.nav-item { display: inline-flex; align-items: center; gap: 8px; border: 0; background: none; padding: 7px 12px; border-radius: 999px; color: var(--muted); font-weight: 600; }
+.nav { position: relative; display: flex; gap: 2px; flex-wrap: wrap; }
+.nav-item { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 8px; border: 0; background: none; padding: 7px 12px; border-radius: 999px; color: var(--muted); font-weight: 600; }
 .nav-item:hover { background: var(--hover); color: var(--fg); }
-.nav-item[aria-current="page"] { background: var(--fg); color: var(--bg); }
+.nav-item[aria-current="page"] { color: var(--bg); }
+.nav-item[aria-current="page"]:hover { background: none; }
 .nav-item .badge { background: var(--crit); color: var(--tile-ink); border-radius: 999px; font-size: 11px; font-weight: 700; padding: 0 6px; min-width: 18px; text-align: center; }
 .appearance { margin-left: auto; }
 .linkish { border: 0; background: none; padding: 0; color: var(--muted); font-size: 13px; text-decoration: underline; text-underline-offset: 2px; }
@@ -236,9 +241,9 @@ button { cursor: pointer; }
 .lr span:not(:first-child) { font-family: var(--font-mono); font-size: 13px; }
 
 /* ---------- applications ---------- */
-.seg { display: inline-flex; gap: 2px; padding: 3px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; flex-wrap: wrap; margin-bottom: 12px; }
-.seg button { border: 0; background: none; padding: 5px 12px; border-radius: 9px; font-weight: 600; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
-.seg button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 0 0 1px var(--line-strong), 0 1px 2px rgba(0, 0, 0, .1); }
+.seg { position: relative; display: inline-flex; gap: 2px; padding: 3px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.seg button { position: relative; z-index: 1; border: 0; background: none; padding: 5px 12px; border-radius: 9px; font-weight: 600; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+.seg button[aria-pressed="true"] { color: var(--fg); }
 .seg .n { font-family: var(--font-mono); font-size: 11.5px; color: var(--faint); }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
 .fchip { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 999px; padding: 3px 11px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
@@ -279,7 +284,7 @@ button.chip:hover { filter: brightness(.96); }
 .stage-names { display: flex; gap: 3px; margin-top: 4px; }
 .stage-names span { width: 64px; font-size: 10.5px; color: var(--faint); text-align: center; }
 
-.bulk { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 20; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;
+.bulk { position: fixed; left: 0; right: 0; margin-inline: auto; width: max-content; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 20; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;
   background: var(--inv-bg); color: var(--inv-fg); border-radius: 14px; padding: 8px 10px 8px 16px; box-shadow: var(--shadow); max-width: calc(100vw - 32px); }
 .bulk .btn { background: transparent; color: var(--inv-fg); border-color: color-mix(in srgb, var(--inv-fg) 40%, transparent); }
 .bulk .btn:hover { background: color-mix(in srgb, var(--inv-fg) 16%, transparent); }
@@ -310,7 +315,7 @@ button.chip:hover { filter: brightness(.96); }
 .timeline .pt { width: 14px; height: 14px; border-radius: 50%; background: var(--surface); border: 3px solid var(--h, var(--faint)); margin-top: 2px; }
 .timeline .tl-note { color: var(--muted); font-size: 12.5px; }
 textarea { width: 100%; min-height: 84px; resize: vertical; border: 1px solid var(--line-strong); border-radius: 10px; padding: 8px 10px; background: var(--surface); }
-.modal { position: fixed; z-index: 32; left: 50%; top: 8vh; transform: translateX(-50%); width: min(560px, calc(100vw - 32px)); max-height: 84vh; overflow: auto; background: var(--surface); border-radius: 18px; box-shadow: var(--shadow); border: 1px solid var(--line); }
+.modal { position: fixed; z-index: 32; left: 0; right: 0; margin-inline: auto; top: 8vh; width: min(560px, calc(100vw - 32px)); max-height: 84vh; overflow: auto; background: var(--surface); border-radius: 18px; box-shadow: var(--shadow); border: 1px solid var(--line); }
 .modal header { display: flex; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--line); background: var(--panel-blue); border-radius: 18px 18px 0 0; }
 .modal header h2 { margin: 0; font-size: 17px; flex: 1; }
 .form { padding: 18px 20px 20px; display: grid; gap: 14px; }
@@ -335,7 +340,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; border: 1px solid va
 .menu button:hover, .menu button:focus-visible { background: var(--hover); outline: none; }
 .menu .tick { width: 16px; display: inline-grid; place-items: center; color: var(--accent); }
 .menu .hd { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); padding: 6px 10px 2px; font-weight: 700; }
-.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 50; background: var(--inv-bg); color: var(--inv-fg); padding: 9px 16px; border-radius: 12px; box-shadow: var(--shadow); font-weight: 500; max-width: calc(100vw - 32px); text-align: center; }
+.toast { position: fixed; left: 0; right: 0; margin-inline: auto; width: max-content; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 50; background: var(--inv-bg); color: var(--inv-fg); padding: 9px 16px; border-radius: 12px; box-shadow: var(--shadow); font-weight: 500; max-width: calc(100vw - 32px); text-align: center; }
 .toast.bad { background: var(--crit); color: var(--tile-ink); }
 
 @media (max-width: 900px) {
@@ -368,3 +373,51 @@ html { background: var(--bg); }
 .skip:focus { left: 12px; top: 12px; z-index: 100; background: var(--surface); padding: 8px 12px; border-radius: 8px; }
 .row-fade { opacity: .55; }
 @media (max-width: 560px) { .edit-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- motion ----------
+   JS-driven motion (menus, panels, screens, the knob, the logo flight) lives in lib/motion.js.
+   Here: hover and press, which CSS does best. Rules:
+     - pressing scales to .97, and it snaps there instantly (nothing is tweened while held);
+       letting go eases back out
+     - hover colours ease in 150 ms
+     - no bounce: every curve here is the same ease-out, which cannot overshoot */
+.btn, .nav-item, .seg button, .fchip, .chip, .attn-item, .lr, .iconbtn, .menu button, .linkish, .cell-link, .ph .all {
+  transition: transform var(--t-release) var(--ease-out), background-color var(--t-hover) var(--ease-out), color var(--t-hover) var(--ease-out),
+    border-color var(--t-hover) var(--ease-out), filter var(--t-hover) var(--ease-out), opacity var(--t-hover) var(--ease-out);
+}
+.btn:active, .nav-item:active, .seg button:active, .fchip:active, button.chip:active, .attn-item:active, .lr:active, .iconbtn:active, .menu button:active {
+  transform: scale(var(--press-scale));
+  transition-duration: 0s, var(--t-hover), var(--t-hover), var(--t-hover), var(--t-hover), var(--t-hover); /* the scale is not tweened while held */
+}
+.btn[disabled]:active { transform: none; }
+
+/* the knob: the highlight that travels between tabs (placed and animated by lib/motion.js) */
+.knob { position: absolute; z-index: 0; pointer-events: none; transform-origin: left center; border-radius: 999px; }
+.nav .knob { background: var(--fg); }
+.seg .knob { border-radius: 9px; background: var(--surface); box-shadow: 0 0 0 1px var(--line-strong), 0 1px 2px rgba(0, 0, 0, .1); }
+
+/* overlapping old and new: the old screen lifts into a layer on top and fades while the new one arrives */
+main { position: relative; }
+.ghost { position: absolute; inset: 0 0 auto 0; pointer-events: none; }
+.drawer .ghost { inset: 0; }
+.drawer, .modal, .menu, .bulk, .toast, .scrim { will-change: opacity, transform; }
+
+/* two icons sharing one spot while they crossfade */
+.icon-swap { display: inline-grid; }
+.icon-swap > * { grid-area: 1 / 1; }
+
+/* the drawer's header is the handle: drag it right to dismiss */
+.drawer-head { touch-action: pan-y; cursor: grab; user-select: none; }
+.drawer-head.held { cursor: grabbing; }
+.drawer-head .logo { width: 40px; height: 40px; border-radius: 10px; font-size: 18px; }
+.drawer-body { overscroll-behavior: contain; }
+
+/* a colour change spreads out from its button (a View Transition; lib/motion.js sets the animation) */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+::view-transition-new(root) { z-index: 2; }
+::view-transition-old(root) { z-index: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+  .btn:active, .nav-item:active, .seg button:active, .fchip:active, button.chip:active, .attn-item:active, .lr:active, .iconbtn:active, .menu button:active { transform: none; }
+}

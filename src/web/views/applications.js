@@ -6,6 +6,8 @@ import { api, describeError } from "../lib/api.js";
 import { $, clear, h, icon } from "../lib/dom.js";
 import { ctx } from "../lib/ctx.js";
 import { ago, plural, shortDate, today } from "../lib/format.js";
+import { cancelMotion, crossfadeIcon, hideWith, slideIn, slideOut } from "../lib/motion.js";
+import { DURATION } from "../lib/motion-math.js";
 import { label, movesFrom, state, vocab } from "../lib/state.js";
 import { chip, emptyNote, logo, openMenu, progressBar, toast } from "../lib/ui.js";
 import { table, toolbar } from "./toolbar.js";
@@ -17,6 +19,7 @@ const FILTER_CHIPS = [["all", "All"], ["saved", "Saved"], ["drafting", "Drafting
 
 let rows = [];        // the pipeline rows for the current list
 let rowEls = new Map(); // id -> { tr, box }, so ticking a box doesn't rebuild the table
+let lastSort = null; // the sort shown on the previous draw, so a changed arrow can crossfade
 let gridEl = null, chipsEl = null, countEl = null; // this screen's own elements (not looked up in the page, which they may not be in yet)
 
 const matchesFilter = (row, f) => f === "all" || (f === "ended" ? row.progress.outcome !== null : row.application.status === f);
@@ -60,8 +63,8 @@ export async function applicationsView() {
   view.append(h("div", { class: "head" },
     h("div", {}, h("h1", { class: "title", text: current ? current.name : "Applications" }), countEl), toolbar()));
 
-  const tabs = h("div", { class: "seg", role: "group", "aria-label": "List" });
-  const tab = (name, count, id) => tabs.append(h("button", { type: "button", "aria-pressed": String(state.list === id), onclick: () => { state.list = id; state.selected.clear(); state.statusFilter = "all"; ctx.refresh(); } },
+  const tabs = h("div", { class: "seg", role: "group", "aria-label": "List", "data-knob": "list" });
+  const tab = (name, count, id) => tabs.append(h("button", { type: "button", "aria-pressed": String(state.list === id), onclick: () => { state.list = id; state.selected.clear(); state.statusFilter = "all"; ctx.refresh("swap"); } },
     name, h("span", { class: "n", text: String(count) })));
   tab("All applications", allCount, "all");
   lists.forEach((l) => tab(l.name, l.count, String(l.id)));
@@ -105,7 +108,7 @@ function renderTable() {
   for (const [key, name] of COLUMNS) {
     const on = state.sort.key === key;
     headRow.append(h("th", { "aria-sort": on ? (state.sort.dir === "asc" ? "ascending" : "descending") : "none" },
-      h("button", { type: "button", onclick: () => { state.sort = { key, dir: on && state.sort.dir === "desc" ? "asc" : "desc" }; renderTable(); } }, name, icon("sort", 13))));
+      h("button", { type: "button", onclick: () => { state.sort = { key, dir: on && state.sort.dir === "desc" ? "asc" : "desc" }; renderTable(); } }, name, sortIcon(key))));
   }
   grid.append(h("thead", {}, headRow));
 
@@ -117,9 +120,9 @@ function renderTable() {
       if (e.target.checked) state.selected.add(a.id); else state.selected.delete(a.id);
       syncSelection(); renderBulk();
     } });
-    const tr = h("tr", { class: state.flash === a.id ? "flash" : "", onclick: () => ctx.openApplication(a.id) },
+    const tr = h("tr", { class: state.flash === a.id ? "flash" : "", "data-app-id": String(a.id), onclick: (e) => ctx.openApplication(a.id, e.currentTarget) },
       h("td", { class: "chk", onclick: (e) => e.stopPropagation() }, box),
-      h("td", {}, h("div", { class: "cell-co" }, logo(a.company), h("button", { class: "cell-link", type: "button", text: a.company, onclick: (e) => { e.stopPropagation(); ctx.openApplication(a.id); } }))),
+      h("td", {}, h("div", { class: "cell-co" }, logo(a.company), h("button", { class: "cell-link", type: "button", text: a.company, onclick: (e) => { e.stopPropagation(); ctx.openApplication(a.id, e.currentTarget); } }))),
       h("td", { class: "dim", text: a.roleTitle }),
       h("td", {}, chip(a.status, (e) => { e.stopPropagation(); statusMenu(a, e.currentTarget); })),
       h("td", {}, progressBar(row.progress)),
@@ -132,7 +135,16 @@ function renderTable() {
   if (!visible.length) body.append(h("tr", {}, h("td", { colspan: "8" }, emptyNote(rows.length ? "No applications match. Clear the search or a filter." : "Nothing here yet. Add your first application with the button above."))));
   grid.append(body);
   state.flash = null;
+  lastSort = { ...state.sort };
   syncSelection(visible, selectAll);
+}
+
+/** The arrow in a column header. When the sort changes, the old arrow and the new one crossfade (with a touch of blur). */
+function iconFor(key, sort) { return sort.key !== key ? "sort" : sort.dir === "asc" ? "arrowUp" : "arrowDown"; }
+function sortIcon(key) {
+  const now = iconFor(key, state.sort);
+  const before = lastSort ? iconFor(key, lastSort) : now;
+  return before === now ? icon(now, 13) : crossfadeIcon(icon(before, 13), icon(now, 13));
 }
 
 function syncSelection(visible, selectAll) {
@@ -187,15 +199,20 @@ function bulkSector(anchor) {
   } })));
 }
 
-export function hideBulk() { const el = $("#bulk"); el.hidden = true; clear(el); }
+export function hideBulk() { const el = $("#bulk"); cancelMotion(el); el.hidden = true; clear(el); }
 
 function renderBulk() {
-  const el = clear($("#bulk"));
-  if (state.view !== "applications" || !state.selected.size) { el.hidden = true; return; }
-  el.hidden = false;
+  const el = $("#bulk");
+  if (state.view !== "applications" || !state.selected.size) {
+    // it sinks away (20% quicker than it rose) and is then really hidden
+    if (!el.hidden && el._leaving == null) hideWith(el, () => slideOut(el, { y: 16, duration: DURATION.toast }));
+    return;
+  }
+  clear(el);
   el.className = "bulk";
   el.append(h("b", { text: `${state.selected.size} selected` }),
     h("button", { class: "btn small", type: "button", onclick: (e) => { e.stopPropagation(); bulkSector(e.currentTarget); } }, "Set sector", icon("down", 13)),
     h("button", { class: "btn small", type: "button", onclick: bulkGhost, text: "Mark ghosted" }),
     h("button", { class: "iconbtn", type: "button", "aria-label": "Clear selection", onclick: () => { state.selected.clear(); syncSelection(); renderBulk(); } }, icon("x", 15)));
+  if (el.hidden || el._leaving != null) { cancelMotion(el); el.hidden = false; slideIn(el, { y: 16, duration: DURATION.toast }); }
 }

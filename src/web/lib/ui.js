@@ -2,6 +2,8 @@
 // the toast, and the pop-up menu.
 
 import { $, clear, h, icon } from "./dom.js";
+import { DURATION } from "./motion-math.js";
+import { cancelMotion, hideWith, popIn, popOut, slideIn, slideOut } from "./motion.js";
 import { label, vocab } from "./state.js";
 
 // ---- company "logo": the first letter on a colour chosen from the name (the same name is always the same colour) ----
@@ -40,21 +42,29 @@ export function toast(message, bad = false) {
   el.textContent = message;
   el.className = `toast${bad ? " bad" : ""}`;
   el.hidden = false;
+  cancelMotion(el);
+  slideIn(el, { y: 12, duration: DURATION.toast });
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.hidden = true; }, bad ? 6000 : 3200); // an error stays long enough to read
+  toastTimer = setTimeout(() => hideWith(el, () => slideOut(el, { y: 12, duration: DURATION.toast })), bad ? 6000 : 3200); // an error stays long enough to read
 }
 
 // ---- pop-up menu (the status "move to" list, set-sector, appearance) ----
 let openMenuEl = null;
 export const menuIsOpen = () => openMenuEl !== null;
-export function closeMenu() {
-  if (openMenuEl) { openMenuEl.remove(); openMenuEl = null; }
+/** Closes the open menu. It shrinks back into the thing that opened it, unless `immediate` (used when replacing one menu with another). */
+export function closeMenu({ immediate = false } = {}) {
+  const el = openMenuEl;
+  if (!el) return;
+  openMenuEl = null;
+  if (immediate) { el.remove(); return; }
+  el.inert = true; // no more clicks while it leaves
+  popOut(el, el._anchor).then(() => el.remove());
 }
 document.addEventListener("click", (e) => { if (openMenuEl && !openMenuEl.contains(e.target)) closeMenu(); });
 
 /** items: [{ status } | { label, checked?, run }]. A "group" item is a small heading. */
 export function openMenu(anchor, title, items) {
-  closeMenu();
+  closeMenu({ immediate: true });
   const menu = h("div", { class: "menu", role: "menu" });
   if (title) menu.append(h("div", { class: "hd", text: title }));
   for (const item of items) {
@@ -71,7 +81,9 @@ export function openMenu(anchor, title, items) {
   let top = r.bottom + 6;
   if (top + menu.offsetHeight > window.innerHeight - 12) top = Math.max(12, r.top - menu.offsetHeight - 6);
   menu.style.top = `${top}px`;
+  menu._anchor = anchor;
   openMenuEl = menu;
+  popIn(menu, anchor); // grows from the button that opened it
   menu.querySelector("button")?.focus();
 }
 

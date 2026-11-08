@@ -18,7 +18,7 @@ export function panel(cls, ic, title, count, viewAll, ...kids) {
 }
 
 export function attentionItem(application, tagText, tone) {
-  return h("button", { class: "attn-item", type: "button", onclick: () => ctx.openApplication(application.id) },
+  return h("button", { class: "attn-item", type: "button", "data-app-id": String(application.id), onclick: (e) => ctx.openApplication(application.id, e.currentTarget) },
     logo(application.company),
     h("span", { class: "who" }, h("b", { text: application.company }), h("small", { text: application.roleTitle })),
     h("span", { class: `tag ${tone}`, text: tagText }));

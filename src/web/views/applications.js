@@ -73,6 +73,7 @@ export async function applicationsView() {
   view.append(tabs, chipsEl, h("div", { class: "tablewrap" }, gridEl));
 
   table.rerender = renderTable;
+  table.view = "applications";
   renderTable();
   renderBulk();
   return view;
@@ -80,6 +81,7 @@ export async function applicationsView() {
 
 export function leaveApplications() {
   table.rerender = null;
+  table.view = null;
   hideBulk();
 }
 
@@ -193,7 +195,7 @@ function bulkSector(anchor) {
     try {
       const r = await api.bulkEdit([...state.selected], { sector });
       state.selected.clear();
-      toast(`Sector set to ${sector} on ${plural(r.updated, "application")}`);
+      toast(`Sector set to ${sector} for ${plural(r.updated, "application")}, and every other application at those companies`);
       await ctx.refresh();
     } catch (e) { toast(describeError(e), true); }
   } })));

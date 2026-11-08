@@ -421,3 +421,14 @@ main { position: relative; }
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
   .btn:active, .nav-item:active, .seg button:active, .fchip:active, button.chip:active, .attn-item:active, .lr:active, .iconbtn:active, .menu button:active { transform: none; }
 }
+
+/* ---------- companies screen ---------- */
+.grid th .th-plain { display: block; padding: 10px 12px; }
+.grid tr.static-row { cursor: default; }
+.inline-input, .inline-select { font: inherit; color: inherit; background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 5px 8px; min-width: 0; }
+.inline-input { width: 100%; max-width: 280px; font-weight: 600; }
+.inline-input:hover, .inline-select:hover { border-color: var(--line-strong); }
+.inline-input:focus, .inline-select:focus { border-color: var(--focus); background: var(--surface); outline: none; }
+.inline-select { max-width: 220px; }
+.end-cell { text-align: right; }
+.companies-grid { min-width: 640px; }

@@ -33,7 +33,7 @@ export async function openDrawer(id, from) {
 // they define what counts as a duplicate, so they are not casually editable.
 const FIELDS = [
   { key: "roleFunction", name: "Function", kind: "select", options: () => vocab.roleFunctions.map((f) => [f, f]) },
-  { key: "sector", name: "Sector", kind: "select", options: () => [["", "Not set"], ...vocab.sectors.map((s) => [s, s])] },
+  { key: "sector", name: "Sector (the company's)", kind: "select", options: () => [["", "Not set"], ...vocab.sectors.map((s) => [s, s])], hint: (a) => `Shared by every ${a.company} application.`, wide: true },
   { key: "location", name: "Location", kind: "text" },
   { key: "term", name: "Term", kind: "text", placeholder: "e.g. Summer 2027" },
   { key: "followUpOn", name: "Follow up on", kind: "date" },
@@ -83,14 +83,14 @@ function draw({ application: a, events, progress }, from) {
       try {
         await api.edit(a.id, { [f.key]: value === "" ? null : value });
         stored = value;
-        toast("Saved");
+        toast(f.key === "sector" ? `Sector saved for every ${a.company} application` : "Saved");
         await ctx.refresh();
       } catch (e) {
         input.value = stored; // put back what is actually stored
         toast(describeError(e), true);
       }
     });
-    grid.append(h("div", { class: `field${f.wide ? " wide" : ""}` }, h("label", { for: id, text: f.name }), input));
+    grid.append(h("div", { class: `field${f.wide ? " wide" : ""}` }, h("label", { for: id, text: f.name }), input, f.hint ? h("span", { class: "hint", text: f.hint(a) }) : null));
   }
   const firstApplied = events.find((e) => e.status === "applied");
   const appliedOn = a.appliedOn ?? firstApplied?.occurredOn ?? null;

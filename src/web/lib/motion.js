@@ -152,6 +152,15 @@ export function crossfade(container, fill, { duration = DURATION.swap } = {}) {
 
 // ---------- the knob: one highlight that travels between tabs ----------
 const knobMemory = new Map();
+const watchers = new WeakMap(); // container -> the ResizeObserver keeping its knob on its tab
+
+const boxOf = (el) => ({ x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight });
+function fitKnob(knob, box) {
+  knob.style.left = `${box.x}px`;
+  knob.style.top = `${box.y}px`;
+  knob.style.width = `${box.w}px`;
+  knob.style.height = `${box.h}px`;
+}
 
 /** Put (or move) the knob behind the active item of every `[data-knob]` container inside `root`. */
 export function placeKnobs(root) {
@@ -159,19 +168,32 @@ export function placeKnobs(root) {
     const key = container.dataset.knob;
     const active = container.querySelector('[aria-pressed="true"], [aria-current="page"]');
     container.querySelectorAll(":scope > .knob").forEach((k) => k.remove());
+    watchers.get(container)?.disconnect();
     if (!active) { knobMemory.delete(key); return; }
     const knob = document.createElement("span");
     knob.className = "knob";
     knob.setAttribute("aria-hidden", "true");
     container.prepend(knob);
-    const next = { x: active.offsetLeft, w: active.offsetWidth };
-    knob.style.left = `${next.x}px`;
-    knob.style.top = `${active.offsetTop}px`;
-    knob.style.width = `${next.w}px`;
-    knob.style.height = `${active.offsetHeight}px`;
+    const next = boxOf(active);
+    fitKnob(knob, next);
     const prev = knobMemory.get(key);
     knobMemory.set(key, next);
     if (prev && (prev.x !== next.x || prev.w !== next.w)) play(knob, knobKeyframes(prev, next), { duration: DURATION.move, easing: EASE.inOut, fill: "none" });
+
+    // The knob's position is measured in pixels, so anything that moves its tab afterwards (the window being resized,
+    // a badge appearing on a neighbouring tab, the tabs wrapping onto a second line, fonts loading) would strand it.
+    // Watch the tab and its row, and keep the knob glued on.
+    if (typeof ResizeObserver !== "undefined") {
+      const watch = new ResizeObserver(() => {
+        if (!knob.isConnected) { watch.disconnect(); return; }
+        const box = boxOf(active);
+        fitKnob(knob, box);
+        knobMemory.set(key, box);
+      });
+      watch.observe(container);
+      watch.observe(active);
+      watchers.set(container, watch);
+    }
   });
 }
 

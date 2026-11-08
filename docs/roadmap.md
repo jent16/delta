@@ -101,10 +101,11 @@ UI:
   Fix: download the three font files once and serve them from `src/web/` (needs
   your OK to download).
 - Archive has no "unarchive" in the UI (the data is kept, and exports include it).
-- Company, role and term can't be edited from the panel (they define what counts
-  as a duplicate); fix a typo by archiving and re-adding for now.
+- Role and term can't be edited from the panel (they define what counts as a duplicate); fix
+  a typo by archiving and re-adding. A misspelt COMPANY can now be renamed or merged on the
+  Companies screen.
 - No login: fine while it only listens on your own machine, required before hosting (step 9).
-- 17 applications still have no sector; the bulk "Set sector" menu makes that quick.
+- 14 companies still have no sector; the Companies screen has a "No sector" filter to work through them.
 
 Backend:
 - 17 applications (15 companies, e.g. Intuit, Grow, Amplify, Honeywell) still have

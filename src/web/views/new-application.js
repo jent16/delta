@@ -27,6 +27,7 @@ export function openNewApplication() {
   const term = h("input", { id: "f-term", type: "text", placeholder: "e.g. Summer 2027" });
   const fn = h("select", { id: "f-fn" }, vocab.roleFunctions.map((f) => h("option", { value: f, text: f })));
   const sector = h("select", { id: "f-sector" }, h("option", { value: "", text: "Not sure yet" }), vocab.sectors.map((s) => h("option", { value: s, text: s })));
+  const sectorNote = h("span", { class: "hint", id: "sector-note", hidden: true });
   const status = h("select", { id: "f-status" }, START_STATUSES.map(([value, text]) => h("option", { value, text })));
   const appliedOn = h("input", { id: "f-date", type: "date", value: today() });
   const appliedField = h("div", { class: "field", hidden: true }, h("label", { for: "f-date", text: "Applied on" }), appliedOn);
@@ -41,7 +42,7 @@ export function openNewApplication() {
       const meta = h("span", { class: "meta" });
       if (s.match === "similar") meta.append(h("span", { class: "mini dym", text: "Did you mean?" }));
       if (s.sectorHint) meta.append(h("span", { class: "mini", text: s.sectorHint }));
-      meta.append(h("span", { class: `mini${s.source === "yours" ? " me" : ""}`, text: s.source === "yours" ? `In your tracker · ${s.applications ?? 1}` : "Directory" }));
+      meta.append(h("span", { class: `mini${s.source === "yours" ? " me" : ""}`, text: s.source === "yours" ? (s.applications ? `In your tracker · ${s.applications}` : "In your tracker · archived") : "Directory" }));
       list.append(h("li", { class: "opt", role: "option", "aria-selected": String(i === active), onmousedown: (e) => { e.preventDefault(); choose(s); } }, logo(s.name), h("span", { class: "nm", text: s.name }), meta));
     });
     const typed = company.value.trim();
@@ -52,10 +53,21 @@ export function openNewApplication() {
     setOpen(list.childNodes.length > 0);
   }
 
+  // a company you already have owns its sector: show it, don't let this form quietly disagree with it
+  function lockSector(locked, name = "") {
+    sector.disabled = locked;
+    sectorNote.hidden = !locked;
+    sectorNote.textContent = locked ? `The sector belongs to ${name}. Change it on the Companies screen.` : "";
+  }
+
   function choose(s) {
     company.value = s.name;
     setOpen(false);
-    if (s.sectorHint) sector.value = s.sectorHint; // a helpful guess, which you can change
+    if (s.source === "yours" && s.sector) { sector.value = s.sector; lockSector(true, s.name); }
+    else {
+      lockSector(false);
+      if (s.sectorHint) sector.value = s.sectorHint; // a helpful guess for a company you don't have yet, which you can change
+    }
     role.focus();
   }
 
@@ -78,7 +90,7 @@ export function openNewApplication() {
   }
   hint.dataset.base = hint.textContent;
 
-  company.addEventListener("input", () => { error.hidden = true; clearTimeout(timer); timer = setTimeout(search, 150); });
+  company.addEventListener("input", () => { error.hidden = true; lockSector(false); clearTimeout(timer); timer = setTimeout(search, 150); });
   company.addEventListener("focus", () => { if (company.value.trim()) search(); });
   company.addEventListener("blur", () => setTimeout(() => setOpen(false), 120));
   company.addEventListener("keydown", (e) => {
@@ -130,7 +142,7 @@ export function openNewApplication() {
     h("form", { class: "form", onsubmit: onSubmit },
       h("div", { class: "field" }, h("label", { for: "f-company", text: "Company" }), h("div", { class: "combo" }, company, list), error, hint),
       h("div", { class: "field" }, h("label", { for: "f-role", text: "Role" }), role),
-      h("div", { class: "row2" }, h("div", { class: "field" }, h("label", { for: "f-fn", text: "Function" }), fn), h("div", { class: "field" }, h("label", { for: "f-sector", text: "Sector" }), sector)),
+      h("div", { class: "row2" }, h("div", { class: "field" }, h("label", { for: "f-fn", text: "Function" }), fn), h("div", { class: "field" }, h("label", { for: "f-sector", text: "Sector" }), sector, sectorNote)),
       h("div", { class: "row2" }, h("div", { class: "field" }, h("label", { for: "f-status", text: "Status" }), status), appliedField),
       h("div", { class: "row2" }, h("div", { class: "field" }, h("label", { for: "f-loc", text: "Location" }), location), h("div", { class: "field" }, h("label", { for: "f-term", text: "Term (optional)" }), term)),
       h("div", { class: "form-actions" }, h("button", { class: "btn", type: "button", onclick: closeOverlays, text: "Cancel" }), submit)));

@@ -32,7 +32,8 @@ list of allowed moves, and the last change can be undone.
 **Lists.** `SWE`, `PM` and `Fintech-adjacent` are saved *filters* over one
 table, not folders. An application matches every list whose filter fits it, and
 counts update as soon as anything changes. Roles have a `roleFunction` (SWE, PM,
-Data, Quant, Design, Other) and a `sector` (Fintech, Finance, Healthcare, ...);
+Data, Quant, Design, Other), and the company they are at has a `sector` (Fintech, Finance,
+Healthcare, ...) stored once on the company;
 "Fintech-adjacent" means SWE or Quant roles at a Finance or Fintech employer.
 
 **Your data** lives in `var/tracker.db` (gitignored, and the only copy: back it
@@ -55,9 +56,12 @@ elsewhere.
 | `GET /api/lists/:id/applications` | run the list; narrow it with `status`, `function`, `sector`, `q` |
 | `PATCH /api/lists/:id`, `DELETE /api/lists/:id` | rename / re-filter / delete (applications are never touched) |
 | `GET /api/applications?missing=sector` | what still needs filling in (`sector`, `term`, `location`, `url`); also works inside a list |
-| `POST /api/applications/bulk` | `{ids, set}`: change `sector`, `roleFunction`, `location`, `source`, `resumeVersion`, `followUpOn`, `deadlineOn` on many at once, all or nothing |
+| `POST /api/applications/bulk` | `{ids, set}`: change `sector` (which sets it on each selected application's company), `roleFunction`, `location`, `source`, `resumeVersion`, `followUpOn`, `deadlineOn` on many at once, all or nothing |
 | `POST /api/applications/bulk/status` | `{ids, status, on?, note?}`: move many to one status. Refuses unless every one may legally make the move (and says which can't); then changes all or none |
 | `GET /api/companies/search?q=` | type-ahead for quick-add: your own companies first, then Simplify's list, with "did you mean" for typos and a sector hint |
+| `GET /api/companies` | your companies, each with its sector and how many applications point at it |
+| `PATCH /api/companies/:id` | rename and/or set the sector (`{name?, sector?}`); a name you already have is a 409 `company_exists` naming it |
+| `POST /api/companies/:id/merge` | `{into}`: move every application to another company and remove this one; refused if two would become the same role |
 | `GET /api/stats` | counts by status/function/sector, the funnel, response rate, median days to a response; `?list=<id>` or any application filter |
 | `GET /api/reminders` | follow-ups due, upcoming/missed deadlines, applications gone quiet; `?days=7&staleDays=21&list=<id>` |
 | `GET /api/export`, `/api/export.csv` | your data as a download |
@@ -86,6 +90,10 @@ writes through the same API as everything else.
   follow-up date and deadline, which feed Reminders), notes, archive.
 - **New application.** A company box that suggests your own companies first, then a
   directory, and forgives typos.
+- **Companies.** Each company once, with its sector. Set Stripe to Fintech and every Stripe
+  application follows. Rename fixes a spelling everywhere; "Merge into…" folds a duplicate
+  (say "Stripe Inc") into the one you meant, moving its applications. A filter shows the
+  companies that still have no sector.
 - **Reminders.** Follow-ups due, deadlines, and applications that have gone quiet.
 - **Motion.** Menus grow from the button that opened them; the detail panel slides
   in while the company logo flies from its row (and back); screens overlap as they

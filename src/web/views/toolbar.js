@@ -5,13 +5,13 @@ import { ctx } from "../lib/ctx.js";
 import { state } from "../lib/state.js";
 
 // the Applications screen registers a function here so typing filters the table without reloading it
-export const table = { rerender: null };
+export const table = { rerender: null, view: null }; // `view` says which screen registered it
 
 export function toolbar() {
-  const input = h("input", { id: "q", type: "search", placeholder: "Search companies and roles", "aria-label": "Search applications", autocomplete: "off", value: state.query,
+  const input = h("input", { id: "q", type: "search", placeholder: state.view === "companies" ? "Search companies" : "Search companies and roles", "aria-label": "Search applications", autocomplete: "off", value: state.query,
     oninput: (e) => {
       state.query = e.target.value;
-      if (state.view === "applications" && table.rerender) { table.rerender(); return; }
+      if (table.rerender && table.view === state.view) { table.rerender(); return; }
       // typing from another screen jumps to the table, keeping the cursor where it was
       ctx.navigate("applications").then(() => { const q = $("#q"); q.focus(); q.setSelectionRange(q.value.length, q.value.length); });
     } });

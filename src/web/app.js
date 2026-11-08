@@ -11,12 +11,13 @@ import { setVocab, state } from "./lib/state.js";
 import { applyLook, DESIGNS, look, MODES, setLook } from "./lib/theme.js";
 import { closeMenu, menuIsOpen, openMenu, showMessage } from "./lib/ui.js";
 import { applicationsView, leaveApplications } from "./views/applications.js";
+import { companiesLeave, companiesView } from "./views/companies.js";
 import { dashboardView } from "./views/dashboard.js";
 import { openDrawer } from "./views/drawer.js";
 import { openNewApplication } from "./views/new-application.js";
 import { remindersView } from "./views/reminders.js";
 
-const SCREENS = { dashboard: dashboardView, applications: applicationsView, reminders: remindersView };
+const SCREENS = { dashboard: dashboardView, applications: applicationsView, companies: companiesView, reminders: remindersView };
 
 let badgeCount = 0;
 let renderToken = 0;
@@ -27,7 +28,7 @@ function renderTop() {
     icon(ic, 15), name, view === "reminders" ? h("span", { class: "badge", id: "badge", text: String(badgeCount), hidden: badgeCount === 0 }) : null);
   clear($("#topbar")).append(
     h("div", { class: "brand" }, h("span", { class: "brand-mark" }, icon("delta", 16)), "Delta"),
-    h("nav", { class: "nav", "aria-label": "Main", "data-knob": "nav" }, nav("grid", "Dashboard", "dashboard"), nav("rows", "Applications", "applications"), nav("bell", "Reminders", "reminders")),
+    h("nav", { class: "nav", "aria-label": "Main", "data-knob": "nav" }, nav("grid", "Dashboard", "dashboard"), nav("rows", "Applications", "applications"), nav("building", "Companies", "companies"), nav("bell", "Reminders", "reminders")),
     h("button", { class: "btn small appearance", type: "button", "aria-haspopup": "menu", "aria-label": "Appearance: mode and design", onclick: (e) => { e.stopPropagation(); appearanceMenu(e.currentTarget); } }, icon("palette", 15), "Appearance"));
 }
 
@@ -59,6 +60,7 @@ async function render(mode = "none") {
   placeKnobs($("#topbar"));
   const container = $("#view");
   if (state.view !== "applications") leaveApplications();
+  if (state.view !== "companies") companiesLeave();
   if (!container.firstChild) showMessage(container, "Loading…");
   try {
     const node = await SCREENS[state.view]();

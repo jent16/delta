@@ -15,7 +15,7 @@ export function describeError(err) {
   const b = err.body;
   if (err.status === 0) return "Can't reach the tracker. Is it still running?";
   if (b?.error === "validation") return (b.issues ?? []).map((i) => (i.field && i.field !== "(body)" ? `${i.field}: ${i.message}` : i.message)).join(". ") || "That wasn't valid.";
-  if (b?.error === "invalid_transition" || b?.error === "duplicate") return b.message;
+  if (b?.error === "invalid_transition" || b?.error === "duplicate" || b?.error === "company_exists") return b.message;
   if (b?.error === "not_found") return `That ${b.what ?? "item"} no longer exists.`;
   return "The tracker had a problem with that. Nothing was changed.";
 }
@@ -62,5 +62,8 @@ export const api = {
   archive: (id) => request("DELETE", `/api/applications/${id}`),
   bulkEdit: (ids, set) => request("POST", "/api/applications/bulk", { ids, set }),
   bulkStatus: (ids, status, note) => request("POST", "/api/applications/bulk/status", { ids, status, ...(note ? { note } : {}) }),
+  companies: () => request("GET", "/api/companies").then((r) => r.companies),
+  editCompany: (id, patch) => request("PATCH", `/api/companies/${id}`, patch),
+  mergeCompany: (id, into) => request("POST", `/api/companies/${id}/merge`, { into }),
   searchCompanies: (q, signal) => request("GET", `/api/companies/search${query({ q })}`, undefined, signal),
 };

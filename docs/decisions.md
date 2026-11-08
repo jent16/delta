@@ -341,3 +341,31 @@ the press stops being instant while held, or an animated panel is centred with a
 Rows beyond the twelfth are not staggered: waiting 30 ms per row would make a
 130-row table feel slow, so the rest simply appear.
 
+## 37. A company is a record of its own: name and sector stored once
+Before, every application carried its own copy of the company name and sector, so
+"Stripe is Fintech" was written once per application and could disagree with itself,
+and fixing a spelling meant editing every row. Now `companies` holds the name and the
+sector, and applications point at it with `company_id`. The sector describes the
+company, not the job (function is the property of the job), so it lives there. Setting it on
+any one application, or in bulk, sets it for the company; a later application never
+overwrites an existing sector; the new-application form shows it and locks it.
+**Identity is deliberately simple.** Two names are the same company when they match
+after lowercasing ASCII letters and collapsing spaces (`identityKey`). "Skydio" and
+"skydio" are one company; "Stripe, Inc." is a different one until you merge them.
+Anything cleverer (dropping "Inc.", accents) would have to be written twice, once in
+TypeScript and once in the migration's SQL, and the two would eventually disagree. The
+fuzzy matching in the search box only SUGGESTS; it never decides identity. A test runs
+the real migration over awkward names and requires the SQL and the code to agree.
+**The migration** rebuilt `applications` (dropping `company` and `sector`) in one
+transaction, with the automatic pre-migration backup first. On the real data: 130
+applications and 205 status events kept, 95 companies (four capitalisation variants
+merged, display name = the first spelling that is not all lowercase), and no company
+had two sectors, so none was lost. If one had, the most common sector wins, ties alphabetical.
+**Consequences worth knowing.** Creating a company and its first application is one
+transaction, so a failed or duplicate add leaves no empty company. Renaming a company
+re-derives the duplicate key of every application there, so duplicate detection follows the
+new spelling. Merging moves every application (history included) and is refused, with the
+reason, if two would become the same role and term. Naming a different company on an
+application moves it (it does not rename the company); a company left with no
+applications at all is removed.
+

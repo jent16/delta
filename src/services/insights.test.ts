@@ -111,3 +111,37 @@ test("pipeline: another user's applications never appear, and a bad list is an e
   assert.throws(() => t.insights.pipeline(1, { list: "999" }), NotFoundError);
   assert.throws(() => t.insights.pipeline(1, { list: "abc" }), ValidationError);
 });
+
+test("pipeline: rows carry the applied date and last-change date, falling back to history when the applied date is blank", () => {
+  const t = makeTracker();
+  const a = t.service.add(1, { company: "A", roleTitle: "SWE", roleFunction: "SWE" }); // saved today, no applied date
+  t.service.changeStatus(1, a.id, { status: "applied", on: "2026-09-03" });
+  t.service.changeStatus(1, a.id, { status: "assessment", on: "2026-09-12" });
+  t.service.add(1, { company: "B", roleTitle: "SWE", roleFunction: "SWE", appliedOn: "2026-09-01" });
+  const rows = Object.fromEntries(t.insights.pipeline(1, {}).rows.map((r) => [r.application.company, r]));
+  assert.deepEqual([rows.A!.appliedOn, rows.A!.lastChangeOn], ["2026-09-03", "2026-09-12"]); // from the history
+  assert.equal(rows.A!.application.appliedOn, null);                                        // so the fallback really was needed
+  assert.deepEqual([rows.B!.appliedOn, rows.B!.lastChangeOn], ["2026-09-01", "2026-09-01"]); // the application's own date wins
+});
+
+test("pipeline: ordered by the date of the last status change, not by when the row was edited", () => {
+  const t = makeTracker();
+  const old = t.service.add(1, { company: "Old", roleTitle: "SWE", roleFunction: "SWE", appliedOn: "2026-06-01" });
+  t.service.add(1, { company: "New", roleTitle: "SWE", roleFunction: "SWE", appliedOn: "2026-09-10" });
+  t.advance(5);
+  t.service.edit(1, old.id, { notes: "edited just now" }); // touches updatedAt, but nothing "happened" to the application
+  assert.deepEqual(t.insights.pipeline(1, {}).rows.map((r) => r.application.company), ["New", "Old"]);
+});
+
+test("pipeline: scoped, filtered and ordered identically for a saved list", () => {
+  const t = seeded();
+  const swe = t.insights.pipeline(1, { list: String(list(t, "SWE").id) });
+  assert.deepEqual(swe.rows.map((r) => r.application.company), ["Stripe", "Figma"]); // Stripe moved most recently
+});
+
+test("pipeline: when the application's own applied date and its history disagree, the application's own date is shown", () => {
+  const t = makeTracker();
+  const a = t.service.add(1, { company: "A", roleTitle: "SWE", roleFunction: "SWE", appliedOn: "2026-09-01" });
+  t.service.edit(1, a.id, { appliedOn: "2026-09-02" }); // corrected by hand; the history event still says the 1st
+  assert.equal(t.insights.pipeline(1, {}).rows[0]!.appliedOn, "2026-09-02");
+});

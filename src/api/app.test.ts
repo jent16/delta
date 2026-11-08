@@ -206,3 +206,15 @@ test("GET /api/stats includes the weekly applied counts", async (t) => {
   const { body } = await api.call("GET", "/api/stats");
   assert.deepEqual(body.stats.appliedByWeek, [{ weekStart: "2026-09-14", count: 1 }]);
 });
+
+test("GET /api/vocab serves the status rules and closed lists, and GET /api/applications/:id includes progress", async (t) => {
+  const api = await startApi();
+  t.after(() => api.close());
+  const v = (await api.call("GET", "/api/vocab")).body;
+  assert.ok(v.statuses.includes("drafting") && v.sectors.includes("Fintech") && v.roleFunctions.includes("Quant"));
+  assert.deepEqual(v.transitions.applied, ["assessment", "interview", "offer", "rejected", "withdrawn", "ghosted"]);
+  assert.deepEqual(v.progressStages, ["Applied", "Assessment", "Interview", "Offer"]);
+  const a = (await api.call("POST", "/api/applications", { company: "Stripe", roleTitle: "SWE" })).body;
+  await api.call("POST", `/api/applications/${a.id}/status`, { status: "applied" });
+  assert.deepEqual((await api.call("GET", `/api/applications/${a.id}`)).body.progress, { level: 1, outcome: null });
+});

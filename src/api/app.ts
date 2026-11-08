@@ -12,6 +12,7 @@ import type { ExportService } from "../services/export.ts";
 import type { ImportService } from "../services/import.ts";
 import type { InsightsService } from "../services/insights.ts";
 import type { ListService } from "../services/lists.ts";
+import { describeVocabulary } from "../domain/vocab.ts";
 
 export interface AppDeps {
   applications: ApplicationService;
@@ -54,6 +55,9 @@ export function createApp(deps: AppDeps) {
   const { applications, lists, imports, exports: exporter, companies, insights, currentUserId, webRoot } = deps;
   const app = express();
   app.use(express.json());
+
+  // the closed lists and the status rules, so a client never keeps its own copy
+  app.get("/api/vocab", (_req, res) => void res.json(describeVocabulary()));
 
   app.get("/api/health", (_req, res) => void res.json({ ok: true }));
 

@@ -42,3 +42,13 @@ export function computeProgress(history: StatusEvent[], current: Status): Progre
   const outcome: Outcome = current === "rejected" || current === "withdrawn" || current === "ghosted" ? current : null;
   return { level, outcome };
 }
+
+/**
+ * The two dates the applications table shows besides the bar: when it was first sent, and when anything
+ * last happened. "Last" means the newest event recorded (the same meaning reminders use), not the highest
+ * date, so an event you back-date still counts as the latest thing you did.
+ */
+export function historyDates(history: StatusEvent[]): { firstAppliedOn: string | null; lastChangeOn: string | null } {
+  const applied = history.filter((e) => e.status === "applied").map((e) => e.occurredOn).sort();
+  return { firstAppliedOn: applied[0] ?? null, lastChangeOn: history.length ? history[history.length - 1]!.occurredOn : null };
+}

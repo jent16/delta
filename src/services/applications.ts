@@ -12,13 +12,15 @@ import type { Application, StatusEvent } from "../domain/application.ts";
 import { toIsoDate } from "../domain/dates.ts";
 import { DuplicateError, InvalidTransitionError, NotFoundError, ValidationError } from "../domain/errors.ts";
 import type { ApplicationRepository } from "../domain/ports.ts";
+import { computeProgress } from "../domain/progress.ts";
+import type { Progress } from "../domain/progress.ts";
 import { canTransition, nextStatuses } from "../domain/status.ts";
 
 export type Clock = () => Date;
 
 export interface ApplicationService {
   add(userId: number, raw: unknown): Application;
-  get(userId: number, id: number): { application: Application; events: StatusEvent[]; nextStatuses: readonly string[] };
+  get(userId: number, id: number): { application: Application; events: StatusEvent[]; nextStatuses: readonly string[]; progress: Progress };
   list(userId: number, rawQuery: Record<string, unknown>): Application[];
   edit(userId: number, id: number, raw: unknown): Application;
   changeStatus(userId: number, id: number, raw: unknown): Application;
@@ -52,7 +54,8 @@ export function createApplicationService(deps: { repo: ApplicationRepository; cl
 
     get(userId, id) {
       const application = mustFind(userId, id);
-      return { application, events: repo.events(userId, id), nextStatuses: nextStatuses(application.status) };
+      const events = repo.events(userId, id);
+      return { application, events, nextStatuses: nextStatuses(application.status), progress: computeProgress(events, application.status) };
     },
 
     list(userId, rawQuery) {

@@ -8,6 +8,10 @@
 // Deliberately NOT imported from the legacy lib/industries.js: the tracker
 // owns its vocabulary, so changing the old scoring module can't break it.
 
+import { PROGRESS_STAGES } from "./progress.ts";
+import { nextStatuses, STATUSES } from "./status.ts";
+import type { Status } from "./status.ts";
+
 export const ROLE_FUNCTIONS = ["SWE", "PM", "Data", "Quant", "Design", "Other"] as const;
 export type RoleFunction = (typeof ROLE_FUNCTIONS)[number];
 
@@ -34,3 +38,18 @@ export const SECTORS = [
   "General Technology",
 ] as const;
 export type Sector = (typeof SECTORS)[number];
+
+/**
+ * Everything a client needs to draw pickers and legal "move to" menus, taken from the domain itself.
+ * The web UI asks for this instead of keeping its own copy of the status rules, so the two can never disagree.
+ */
+export function describeVocabulary() {
+  const transitions = Object.fromEntries(STATUSES.map((s) => [s, [...nextStatuses(s)]])) as Record<Status, Status[]>;
+  return {
+    statuses: [...STATUSES],
+    transitions,
+    roleFunctions: [...ROLE_FUNCTIONS],
+    sectors: [...SECTORS],
+    progressStages: [...PROGRESS_STAGES],
+  };
+}

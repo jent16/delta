@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { StatusEvent } from "./application.ts";
-import { computeProgress, PROGRESS_STAGES } from "./progress.ts";
+import { computeProgress, historyDates, PROGRESS_STAGES } from "./progress.ts";
 import { STATUSES } from "./status.ts";
 import type { Status } from "./status.ts";
 
@@ -51,4 +51,20 @@ test("only rejected, withdrawn and ghosted are outcomes; no other status is", ()
 
 test("there are four named segments, matching the highest level", () => {
   assert.deepEqual([...PROGRESS_STAGES], ["Applied", "Assessment", "Interview", "Offer"]);
+});
+
+const on = (status: Status, occurredOn: string, id: number): StatusEvent => ({ id, applicationId: 1, status, occurredOn, note: null, createdAt: "t" });
+
+test("historyDates: first applied date and the newest event's date", () => {
+  assert.deepEqual(historyDates([on("saved", "2026-08-01", 1), on("applied", "2026-09-02", 2), on("interview", "2026-09-20", 3)]), { firstAppliedOn: "2026-09-02", lastChangeOn: "2026-09-20" });
+});
+
+test("historyDates: nothing sent yet means no applied date; no history means no dates at all", () => {
+  assert.deepEqual(historyDates([on("saved", "2026-08-01", 1), on("drafting", "2026-08-05", 2)]), { firstAppliedOn: null, lastChangeOn: "2026-08-05" });
+  assert.deepEqual(historyDates([]), { firstAppliedOn: null, lastChangeOn: null });
+});
+
+test("historyDates: with more than one applied event the EARLIEST date is the first; 'last' is the newest recorded event, even if back-dated", () => {
+  const h = [on("applied", "2026-09-10", 1), on("ghosted", "2026-10-30", 2), on("applied", "2026-09-01", 3), on("interview", "2026-10-02", 4)];
+  assert.deepEqual(historyDates(h), { firstAppliedOn: "2026-09-01", lastChangeOn: "2026-10-02" });
 });

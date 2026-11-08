@@ -249,3 +249,15 @@ test("the repository rolls back EVERY change if one write in the batch fails (a 
   assert.equal(t.service.get(1, a.id).application.status, "applied");
   assert.equal(t.service.get(1, a.id).events.length, 1);
 });
+
+test("get() includes how far the application got, so a detail view needs no second request", () => {
+  const t = makeTracker();
+  const a = t.service.add(1, { company: "Stripe", roleTitle: "SWE", roleFunction: "SWE" });
+  assert.deepEqual(t.service.get(1, a.id).progress, { level: 0, outcome: null });
+  t.service.changeStatus(1, a.id, { status: "applied" });
+  t.service.changeStatus(1, a.id, { status: "interview" });
+  t.service.changeStatus(1, a.id, { status: "rejected" });
+  assert.deepEqual(t.service.get(1, a.id).progress, { level: 3, outcome: "rejected" });
+  t.service.undoStatusChange(1, a.id); // back to interview: still level 3, no longer ended
+  assert.deepEqual(t.service.get(1, a.id).progress, { level: 3, outcome: null });
+});

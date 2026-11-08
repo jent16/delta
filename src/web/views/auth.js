@@ -4,9 +4,12 @@ import { api, describeError } from "../lib/api.js";
 import { $, clear, h } from "../lib/dom.js";
 import { reduced, staggerIn } from "../lib/motion.js";
 
-/** `info` is /api/auth/state. `onSignedIn(account)` runs once the server has accepted the sign-in. */
-export function showAuth(info, onSignedIn) {
-  let mode = info.claimsExistingData ? "up" : "in"; // the very first visit offers to create the account that takes over your data
+/**
+ * `info` is /api/auth/state. `onSignedIn(account)` runs once the server has accepted the sign-in.
+ * `options.mode` ("in" | "up") says which side to open on; `options.onBack` adds a way back to the welcome page.
+ */
+export function showAuth(info, onSignedIn, options = {}) {
+  let mode = options.mode ?? (info.claimsExistingData ? "up" : "in"); // the very first visit offers to create the account that takes over your data
   const container = $("#view");
   const canSwitch = info.canSignUp; // when sign-ups are closed there is only "sign in"
   if (!canSwitch) mode = "in";
@@ -52,6 +55,7 @@ export function showAuth(info, onSignedIn) {
     });
 
     const card = h("div", { class: "auth-card" },
+      options.onBack ? h("button", { class: "linkish auth-back", type: "button", text: "\u2190 About Delta", onclick: options.onBack }) : null,
       h("h1", { class: "title", text: signingUp ? "Create your account" : "Welcome back" }),
       h("p", { class: "note-line", text: signingUp
         ? (info.claimsExistingData ? "This tracker already holds applications. Your new account takes them over, and nobody else will see them." : "Your applications and people stay private to your account.")

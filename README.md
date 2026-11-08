@@ -143,8 +143,10 @@ profile* below for sign-in.
 
 ### Accounts and profile
 
-Every row already belonged to a user; now people sign in as one. The first time you open the
-tracker it offers **Create your account**, and that account takes over the data already in it
+Every row already belonged to a user; now people sign in as one. Someone who is signed out lands
+on a short **welcome page** (what Delta does and how it works, in `src/web/views/welcome.js`) with
+"Create an account" and "Sign in" buttons; the form comes after. The first account offered
+is **Create your account**, and that account takes over the data already in it
 (your existing applications stay yours). Later sign-ups start empty and can never see yours.
 
 - **Sign-in** is email + password. Passwords are stored only as scrypt hashes; a session is a

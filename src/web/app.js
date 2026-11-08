@@ -12,6 +12,7 @@ import { applyLook, DESIGNS, look, MODES, setLook } from "./lib/theme.js";
 import { closeMenu, menuIsOpen, openMenu, showMessage } from "./lib/ui.js";
 import { applicationsView, leaveApplications } from "./views/applications.js";
 import { showAuth } from "./views/auth.js";
+import { showWelcome } from "./views/welcome.js";
 import { profileView } from "./views/profile.js";
 import { companiesLeave, companiesView } from "./views/companies.js";
 import { dashboardView } from "./views/dashboard.js";
@@ -133,6 +134,11 @@ window.addEventListener("hashchange", () => {
 });
 
 // ---------- signing in and out ----------
+/** What a signed-out visitor sees: the welcome page, then the sign-in / sign-up card (with a way back). */
+function showSignedOut(info) {
+  const welcome = () => showWelcome(info, (mode) => showAuth(info, async (account) => { state.account = account; await boot(); }, { mode, onBack: welcome }));
+  welcome();
+}
 let leaving = false;
 /** Back to the sign-in page, forgetting everything about whoever was here. (Called after sign-out, account deletion, or the session ending.) */
 async function signedOut() {
@@ -148,7 +154,7 @@ async function signedOut() {
     renderTop();
     const info = await api.authState().catch(() => ({ account: null, canSignUp: true, claimsExistingData: false }));
     if (info.account) { state.account = info.account; await boot(); } // still signed in after all (e.g. the 401 was a blip)
-    else showAuth(info, async (account) => { state.account = account; await boot(); });
+    else showSignedOut(info);
   } finally { leaving = false; }
 }
 ctx.signedOut = signedOut;
@@ -173,7 +179,7 @@ renderTop();
 try {
   const info = await api.authState();
   if (info.account) { state.account = info.account; await boot(); }
-  else showAuth(info, async (account) => { state.account = account; await boot(); });
+  else showSignedOut(info);
 } catch (e) {
   showMessage($("#view"), describeError(e), { error: true, retry: () => location.reload() });
 }

@@ -38,6 +38,8 @@ const FIELDS = [
   { key: "term", name: "Term", kind: "text", placeholder: "e.g. Summer 2027" },
   { key: "followUpOn", name: "Follow up on", kind: "date" },
   { key: "deadlineOn", name: "Deadline", kind: "date" },
+  { key: "source", name: "Where you found it", kind: "text", placeholder: "Simplify, referral, career fair…" },
+  { key: "resumeVersion", name: "Resume version", kind: "text", placeholder: "e.g. SWE-v3" },
   { key: "url", name: "Link to the posting", kind: "url", wide: true, placeholder: "https://…" },
 ];
 

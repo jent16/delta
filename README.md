@@ -63,6 +63,7 @@ elsewhere.
 | `PATCH /api/companies/:id` | rename and/or set the sector (`{name?, sector?}`); a name you already have is a 409 `company_exists` naming it |
 | `POST /api/companies/:id/merge` | `{into}`: move every application to another company and remove this one; refused if two would become the same role |
 | `GET /api/stats` | counts by status/function/sector, the funnel, response rate, median days to a response; `?list=<id>` or any application filter |
+| `GET /api/breakdowns` | replies/interviews/offers by `function`, `sector`, `source`, `resume`, the sample threshold, and median days per stage; scoped like stats (`?list=<id>` or any filter) |
 | `GET /api/reminders` | follow-ups due, upcoming/missed deadlines, applications gone quiet; `?days=7&staleDays=21&list=<id>` |
 | `GET /api/export`, `/api/export.csv` | your data as a download |
 
@@ -94,6 +95,11 @@ writes through the same API as everything else.
   application follows. Rename fixes a spelling everywhere; "Merge into…" folds a duplicate
   (say "Stripe Inc") into the one you meant, moving its applications. A filter shows the
   companies that still have no sector.
+- **Insights.** Replies, interviews and offers split by kind of role, sector, where you found the
+  posting and which resume you sent, plus how long each stage takes. Every row shows its counts,
+  and rows with fewer than 10 applications are dimmed and marked "few": with a small search a rate is
+  a hint, not a finding. A move into "ghosted" isn't counted as leaving a stage, because that date is
+  when you gave up waiting.
 - **Reminders.** Follow-ups due, deadlines, and applications that have gone quiet.
 - **Motion.** Menus grow from the button that opened them; the detail panel slides
   in while the company logo flies from its row (and back); screens overlap as they

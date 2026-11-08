@@ -62,7 +62,7 @@ with its own rebuildable `delta.db`.
 | 3b | Backup, verified restore, automatic backups, JSON/CSV export | done |
 | 3c | API for the UI: company search, bulk edit, `missing=` filter, stats, reminders | done |
 | 4 | Web UI: dashboard, applications table, quick-add with company search, detail panel, reminders, light/dark and selectable designs | done (first version) |
-| 5 | Insights: funnel, response rate and time-in-stage per list | planned |
+| 5 | Insights: replies by role/sector/source/resume, time in each stage, with sample sizes | done (first version) |
 | 6 | Contacts (many-to-many with applications) and alumni helper | planned |
 | 7 | Bring the old Delta in: "Save to tracker" from Find Openings; resume match shown on an application | planned |
 | 8 | Follow-up reminders (overdue list, daily digest) | planned |

@@ -369,3 +369,18 @@ reason, if two would become the same role and term. Naming a different company o
 application moves it (it does not rename the company); a company left with no
 applications at all is removed.
 
+## 38. Insights show how much data is behind every number
+A search of 94 applications with 4 replies makes most breakdowns nonsense: "Consumer Tech
+replies 17%" is one reply. So every row on the Insights screen carries its counts, and
+the server sends the minimum sample (10); rows below it are dimmed and marked "few", and
+a note at the top says how many replies the whole page rests on. The alternative, a
+clean-looking table of percentages, would quietly invite conclusions the data cannot support.
+**Same definitions as the dashboard.** Only sent applications count; "replied" means a
+real response (assessment, interview, offer or a rejection); interviews and offers count
+at-least-that-far. **Time in a stage** is the days to the next recorded event, but a move
+into "ghosted" is not counted as leaving the stage: that date is the day you decided to stop
+waiting (the bulk cleanup stamped 71 of them on one day), not something that happened to the
+application, and counting it would make "applied" mean however long you left it.
+The two inputs the source and resume tables need (where you found it, which resume you sent)
+were already columns; they are now editable in the detail panel.
+

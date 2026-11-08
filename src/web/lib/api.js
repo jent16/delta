@@ -53,6 +53,7 @@ export const api = {
   lists: () => request("GET", "/api/lists").then((r) => r.lists),
   pipeline: (listId) => request("GET", `/api/pipeline${query(scope(listId))}`),
   stats: (listId) => request("GET", `/api/stats${query(scope(listId))}`),
+  breakdowns: (listId) => request("GET", `/api/breakdowns${query(scope(listId))}`),
   reminders: () => request("GET", "/api/reminders"),
   application: (id) => request("GET", `/api/applications/${id}`),
   create: (body) => request("POST", "/api/applications", body),

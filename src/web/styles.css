@@ -432,3 +432,20 @@ main { position: relative; }
 .inline-select { max-width: 220px; }
 .end-cell { text-align: right; }
 .companies-grid { min-width: 640px; }
+
+/* ---------- insights ---------- */
+.caution { margin: 0 0 14px; padding: 10px 14px; border-radius: 12px; background: var(--panel-butter); border: 1px solid var(--panel-butter-line); }
+.ins-table { padding: 6px 4px; }
+.ins-row { display: grid; grid-template-columns: minmax(0, 2.4fr) repeat(5, minmax(0, 1fr)); gap: 6px; align-items: center; padding: 7px 10px; border-radius: 8px; font-size: 13px; }
+.ins-row b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ins-row span { font-family: var(--font-mono); text-align: right; white-space: nowrap; }
+.ins-row small { color: var(--faint); font-size: 11.5px; }
+.ins-head { font-size: 12px; font-weight: 600; color: var(--muted); }
+.ins-head span { font-family: var(--font-body); }
+.ins-row + .ins-row:not(.ins-head) { border-top: 1px solid var(--line); }
+.ins-row.few { opacity: .62; }
+.ins-row.few b::after { content: "  few"; font-weight: 500; font-size: 11px; color: var(--faint); font-family: var(--font-mono); }
+.stage-head, .stage-row { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.4fr); }
+.stage-row.few b::after { content: ""; }
+.stage-head span { text-align: right; }
+@media (max-width: 560px) { .ins-row { grid-template-columns: minmax(0, 1.5fr) repeat(5, minmax(0, 1fr)); font-size: 12px; gap: 3px; padding-inline: 6px; } }

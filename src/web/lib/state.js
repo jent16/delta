@@ -3,6 +3,7 @@
 export const state = {
   view: "dashboard",         // dashboard | applications | reminders
   list: "all",               // "all" or a saved list's id (as a string)
+  insightsList: "all",       // the list the Insights screen is looking at (separate, so choosing one there does not change the table)
   statusFilter: "all",       // the chip row above the table
   query: "",                 // the search box
   sort: { key: "updated", dir: "desc" },

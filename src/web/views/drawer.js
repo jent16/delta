@@ -11,7 +11,7 @@ import { crossfade, flyBetween, staggerIn } from "../lib/motion.js";
 import { DURATION, exitDuration } from "../lib/motion-math.js";
 import { closeOverlays, onClosing, openOverlay } from "../lib/overlay.js";
 import { fillPeople } from "./people-section.js";
-import { label, movesFrom, vocab } from "../lib/state.js";
+import { label, movesFrom, state, vocab } from "../lib/state.js";
 import { chip, logo, progressBar, toast } from "../lib/ui.js";
 
 let currentId = null;
@@ -24,7 +24,9 @@ const onScreen = (el) => { const r = el.getBoundingClientRect(); return r.bottom
 /** `from` is the element that was clicked (optional): the panel grows out of it. */
 export async function openDrawer(id, from) {
   try {
-    const detail = await api.application(id);
+    // the profile's resume list is fetched alongside, to suggest names in the "Resume version" box (not needed to open the panel)
+    const [detail, profile] = await Promise.all([api.application(id), api.profile().catch(() => null)]);
+    if (profile) state.resumeNames = profile.resumeVersions.map((v) => v.name);
     draw(detail, from);
   } catch (e) {
     toast(describeError(e), true);
@@ -80,7 +82,7 @@ function draw({ application: a, events, progress }, from) {
     let stored = a[f.key] ?? ""; // what the server last confirmed; updated after each successful save
     const input = f.kind === "select"
       ? h("select", { id }, f.options().map(([value, text]) => h("option", { value, text, selected: value === stored })))
-      : h("input", { id, type: f.kind, value: stored, placeholder: f.placeholder });
+      : h("input", { id, type: f.kind, value: stored, placeholder: f.placeholder, list: f.key === "resumeVersion" ? "d-resume-names" : null });
     input.addEventListener("change", async () => {
       const value = input.value.trim();
       if (value === stored) return;
@@ -94,7 +96,8 @@ function draw({ application: a, events, progress }, from) {
         toast(describeError(e), true);
       }
     });
-    grid.append(h("div", { class: `field${f.wide ? " wide" : ""}` }, h("label", { for: id, text: f.name }), input, f.hint ? h("span", { class: "hint", text: f.hint(a) }) : null));
+    grid.append(h("div", { class: `field${f.wide ? " wide" : ""}` }, h("label", { for: id, text: f.name }), input, f.hint ? h("span", { class: "hint", text: f.hint(a) }) : null,
+      f.key === "resumeVersion" ? h("datalist", { id: "d-resume-names" }, state.resumeNames.map((n) => h("option", { value: n }))) : null));
   }
   const firstApplied = events.find((e) => e.status === "applied");
   const appliedOn = a.appliedOn ?? firstApplied?.occurredOn ?? null;

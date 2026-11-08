@@ -67,3 +67,29 @@ export class SourceError extends Error {
     this.name = "SourceError";
   }
 }
+
+/** Not signed in, or the email/password didn't match. The message never says which, so it can't be used to find out who has an account. */
+export class AuthError extends Error {
+  constructor(message = "not signed in") {
+    super(message);
+    this.name = "AuthError";
+  }
+}
+
+/** Too many wrong passwords for one email in a short time. */
+export class RateLimitedError extends Error {
+  readonly retryAfterSeconds: number;
+  constructor(retryAfterSeconds: number) {
+    super(`too many attempts; try again in ${Math.ceil(retryAfterSeconds / 60)} minute(s)`);
+    this.name = "RateLimitedError";
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+/** The server was set up not to accept new accounts. */
+export class SignupsClosedError extends Error {
+  constructor() {
+    super("new accounts are turned off on this server");
+    this.name = "SignupsClosedError";
+  }
+}

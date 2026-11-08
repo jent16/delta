@@ -364,7 +364,7 @@ html { background: var(--bg); }
 .state-msg .btn { margin-top: 10px; }
 .cell-link { all: unset; box-sizing: border-box; cursor: pointer; font-weight: 600; border-radius: 4px; }
 .cell-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+.edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; align-items: start; }
 .edit-grid .field.wide { grid-column: 1 / -1; }
 .field input[type="date"], .field input[type="url"] { font-family: inherit; }
 .note-line { margin: 0 0 12px; font-size: 12.5px; color: var(--muted); }
@@ -485,3 +485,32 @@ main { position: relative; }
 .paste-box { margin: 10px 0 4px; }
 .paste-label { display: block; font-size: 12.5px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
 .paste { width: 100%; border: 1px solid var(--line-strong); border-radius: 10px; padding: 8px 10px; background: var(--surface); font: inherit; resize: vertical; min-height: 56px; }
+
+/* ---------- sign-in page and profile ---------- */
+.auth-wrap { display: grid; place-items: start center; padding-top: 6vh; }
+.auth-card { width: min(100%, 420px); background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 28px 26px 24px; box-shadow: var(--shadow); }
+.auth-card .title { font-size: clamp(28px, 6vw, 36px); margin-bottom: 8px; }
+.auth-form { display: grid; gap: 14px; margin-top: 18px; }
+.auth-show { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.auth-err, .form .err { margin: 0; font-size: 12.5px; color: var(--crit); font-weight: 600; }
+.auth-go { justify-content: center; padding-block: 10px; }
+.auth-switch { margin: 18px 0 0; font-size: 13px; color: var(--muted); }
+.account-btn { display: inline-flex; align-items: center; gap: 8px; }
+@media (max-width: 1200px) { .acct-name { display: none; } }
+.acct-name { max-width: 14ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.avatar { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--accent-fg); display: inline-grid; place-items: center; font-size: 12px; font-weight: 700; }
+.profile-stack { max-width: 760px; }
+.panel-title { margin: 0 0 12px; font-size: 15px; }
+.field input[readonly] { background: var(--surface-2); color: var(--muted); }
+.rv-list { display: grid; gap: 6px; margin-bottom: 10px; }
+.rv-row { display: grid; grid-template-columns: minmax(120px, 200px) minmax(120px, 1fr) auto auto; gap: 8px; align-items: center; }
+.rv-row .inline-input { max-width: none; border-color: var(--line); }
+.rv-note { font-weight: 400; }
+.rv-uses { white-space: nowrap; }
+.rv-add { display: flex; gap: 8px; }
+.rv-add input { flex: 1; max-width: 260px; border: 1px solid var(--line-strong); border-radius: 10px; padding: 6px 10px; background: var(--surface); }
+.rv-found { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+.pw-form { display: grid; gap: 12px; }
+.pw-form .btn { justify-self: start; }
+.account-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+@media (max-width: 560px) { .rv-row { grid-template-columns: minmax(0, 1fr) auto; } .rv-note { grid-column: 1 / -1; grid-row: 2; } }

@@ -66,7 +66,8 @@ with its own rebuildable `delta.db`.
 | 6 | Contacts (many-to-many with applications), a dated log, follow-up reminders, and the alumni helper | done; LinkedIn connections import done for people at companies you have (option C, "you know 3 people at Jane Street" suggestions for the rest, is next) |
 | 7 | Bring the old Delta in: "Save to tracker" from Find Openings; resume match shown on an application | planned |
 | 8 | Follow-up reminders (overdue list, daily digest) | planned |
-| 9 | Make it multi-user: login, deploy, retire the unauthenticated legacy endpoints | later |
+| 9a | Accounts: email + password sign-in, sessions, profile (school, goals, resume version names), delete account | done |
+| 9b | Hosting it: https, per-address rate limiting, email verification and password reset, retire the unauthenticated legacy endpoints | later |
 | - | Optional: CSV/XLSX import, weekly ingest, sponsorship filter | when wanted |
 
 ### What each next step is for
@@ -90,8 +91,9 @@ with its own rebuildable `delta.db`.
   connections export.
 - **7 Old Delta.** The reason the project started: given an application, show how
   your resume matches the role's skills. Needs a decision on running one server.
-- **9 Multi-user.** Every table already has `user_id`; this adds login, hosting
-  and the security work the unauthenticated legacy endpoints currently prevent.
+- **9 Multi-user.** Every table already had `user_id`. 9a (done) added sign-in and the profile.
+  9b is what hosting needs on top: https, limits by address, email verification and password
+  reset (both need a way to send email), and the legacy endpoints in `server.js`, which still have no login.
 
 ## 4. Known gaps (worth fixing, not yet scheduled)
 
@@ -104,7 +106,8 @@ UI:
 - Role and term can't be edited from the panel (they define what counts as a duplicate); fix
   a typo by archiving and re-adding. A misspelt COMPANY can now be renamed or merged on the
   Companies screen.
-- No login: fine while it only listens on your own machine, required before hosting (step 9).
+- New accounts get "Simon Fraser University" as the alumni-search school until they set their own on the Profile screen (the default predates accounts).
+- No password reset or email check yet (they need email sending): a forgotten password means restoring from a backup or editing the database by hand. Do this before inviting anyone.
 - 14 companies still have no sector; the Companies screen has a "No sector" filter to work through them.
 
 Backend:

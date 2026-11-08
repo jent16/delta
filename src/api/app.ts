@@ -5,7 +5,8 @@
 
 import express from "express";
 import type { ErrorRequestHandler, Request } from "express";
-import { CompanyExistsError, DuplicateError, InvalidTransitionError, NotFoundError, SourceError, ValidationError } from "../domain/errors.ts";
+import { AuthError, CompanyExistsError, DuplicateError, InvalidTransitionError, NotFoundError, RateLimitedError, SignupsClosedError, SourceError, ValidationError } from "../domain/errors.ts";
+import type { AuthService, ProfileService } from "../services/accounts.ts";
 import type { ApplicationService } from "../services/applications.ts";
 import type { CompanyService } from "../services/companies.ts";
 import type { ContactService, SettingsService } from "../services/contacts.ts";
@@ -27,11 +28,15 @@ export interface AppDeps {
   settings: SettingsService;
   insights: InsightsService;
   /**
-   * The one place "who is making this request" is decided. Today there is a
-   * single local user. When login exists, this reads a session instead —
-   * and nothing below it changes, because every service call already takes a userId.
+   * Who is making this request. Production passes `auth`: every route except sign-in and the two public
+   * read-only ones then needs a valid session cookie, and the user is whoever the session belongs to.
+   * `currentUserId` is the test-only alternative (a fixed user, no sign-in); passing neither is a mistake.
    */
-  currentUserId: (req: Request) => number;
+  auth?: AuthService;
+  profile?: ProfileService;
+  currentUserId?: (req: Request) => number;
+  /** Mark the session cookie Secure (browsers then send it only over https). Turn on when the server is reached over https. */
+  secureCookies?: boolean;
   /** Folder of the web UI's static files (index.html, JS, CSS). Omitted in API-only tests. */
   webRoot?: string;
 }
@@ -44,6 +49,12 @@ const idParam = (req: Request): number => {
 
 // Domain errors -> HTTP. This mapping is the API layer's job and nobody else's.
 const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
+  if (err instanceof AuthError) return void res.status(401).json({ error: "unauthenticated", message: err.message });
+  if (err instanceof RateLimitedError) {
+    res.setHeader("Retry-After", String(err.retryAfterSeconds));
+    return void res.status(429).json({ error: "rate_limited", message: err.message, retryAfterSeconds: err.retryAfterSeconds });
+  }
+  if (err instanceof SignupsClosedError) return void res.status(403).json({ error: "signups_closed", message: err.message });
   if (err instanceof ValidationError) return void res.status(400).json({ error: "validation", issues: err.issues });
   if (err instanceof NotFoundError) return void res.status(404).json({ error: "not_found", what: err.what });
   if (err instanceof InvalidTransitionError) {
@@ -59,12 +70,109 @@ const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
 };
 
 export function createApp(deps: AppDeps) {
-  const { applications, lists, imports, exports: exporter, companies, contacts, settings, linkedin, insights, currentUserId, webRoot } = deps;
+  const { applications, lists, imports, exports: exporter, companies, contacts, settings, linkedin, insights, auth, profile, webRoot } = deps;
+  if (!auth && !deps.currentUserId) throw new Error("createApp needs `auth` (production) or `currentUserId` (tests)");
+  const signedIn = new WeakMap<Request, { userId: number; tokenHash: string }>();
+  const currentUserId = (req: Request): number => {
+    if (!auth) return (deps.currentUserId as (r: Request) => number)(req);
+    const who = signedIn.get(req);
+    if (!who) throw new AuthError(); // a route that forgot to sit behind the sign-in check fails closed, never open
+    return who.userId;
+  };
   const app = express();
   // a connections file is a few hundred KB, past the default 100 KB limit: allow it on its own routes only (a parser
   // registered first handles the body, so the general one below skips these paths and everything else stays small)
   app.use("/api/import/linkedin", express.json({ limit: "8mb" }));
   app.use(express.json());
+
+  // nothing from the API may be kept by a browser or a shared cache: it is one person's data
+  app.use("/api", (_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    next();
+  });
+
+  if (auth) {
+    const COOKIE = "delta_session";
+    const cookieToken = (req: Request): string | undefined => {
+      for (const part of (req.headers.cookie ?? "").split(";")) {
+        const i = part.indexOf("=");
+        if (i > 0 && part.slice(0, i).trim() === COOKIE) return part.slice(i + 1).trim() || undefined;
+      }
+      return undefined;
+    };
+    const setCookie = (res: express.Response, token: string) =>
+      res.cookie(COOKIE, token, { httpOnly: true, sameSite: "lax", path: "/", secure: deps.secureCookies === true, maxAge: 30 * 86_400_000 });
+    const clearCookie = (res: express.Response) => res.clearCookie(COOKIE, { httpOnly: true, sameSite: "lax", path: "/", secure: deps.secureCookies === true });
+
+    // A page on another site can make your browser send a request here WITH your cookie. SameSite=Lax already
+    // stops most of that; this refuses what is left: a state-changing request whose Origin is not this server.
+    app.use("/api", (req, res, next) => {
+      if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return next();
+      const origin = req.headers.origin;
+      let originHost: string | null = null;
+      try { originHost = origin && origin !== "null" ? new URL(origin).host : null; } catch { /* malformed: treated as foreign below */ }
+      if (origin && originHost !== req.headers.host) return void res.status(403).json({ error: "bad_origin" });
+      if (req.headers["sec-fetch-site"] === "cross-site") return void res.status(403).json({ error: "bad_origin" });
+      next();
+    });
+
+    // --- public: who am I, sign up, sign in, sign out ---
+    app.get("/api/auth/state", (req, res) => {
+      const me = auth.authenticate(cookieToken(req));
+      res.json({ account: me?.account ?? null, ...auth.state() });
+    });
+    app.post("/api/auth/signup", (req, res) => {
+      const { account, token, claimed } = auth.signUp(req.body);
+      setCookie(res, token);
+      res.status(201).json({ account, claimed });
+    });
+    app.post("/api/auth/signin", (req, res) => {
+      const { account, token } = auth.signIn(req.body);
+      const old = cookieToken(req);
+      if (old) auth.signOut(old);
+      setCookie(res, token);
+      res.json({ account });
+    });
+    app.post("/api/auth/signout", (req, res) => {
+      const token = cookieToken(req);
+      if (token) auth.signOut(token);
+      clearCookie(res);
+      res.status(204).end();
+    });
+
+    // --- everything below this line needs a session ---
+    app.use("/api", (req, res, next) => {
+      if (req.path === "/health" || req.path === "/vocab") return next(); // fixed text, no personal data
+      const me = auth.authenticate(cookieToken(req));
+      if (!me) {
+        clearCookie(res);
+        return void res.status(401).json({ error: "unauthenticated", message: "sign in to continue" });
+      }
+      signedIn.set(req, { userId: me.account.id, tokenHash: me.tokenHash });
+      next();
+    });
+
+    app.post("/api/auth/change-password", (req, res) => {
+      auth.changePassword(currentUserId(req), req.body, signedIn.get(req)!.tokenHash);
+      res.status(204).end();
+    });
+    app.post("/api/auth/delete-account", (req, res) => {
+      auth.deleteAccount(currentUserId(req), req.body);
+      clearCookie(res);
+      res.status(204).end();
+    });
+  }
+
+  if (profile) {
+    app.get("/api/profile", (req, res) => void res.json(profile.get(currentUserId(req))));
+    app.patch("/api/profile", (req, res) => void res.json({ profile: profile.edit(currentUserId(req), req.body) }));
+    app.post("/api/resume-versions", (req, res) => void res.status(201).json(profile.addResumeVersion(currentUserId(req), req.body)));
+    app.patch("/api/resume-versions/:id", (req, res) => void res.json(profile.editResumeVersion(currentUserId(req), idParam(req), req.body)));
+    app.delete("/api/resume-versions/:id", (req, res) => {
+      profile.removeResumeVersion(currentUserId(req), idParam(req));
+      res.status(204).end();
+    });
+  }
 
   // the closed lists and the status rules, so a client never keeps its own copy
   app.get("/api/vocab", (_req, res) => void res.json(describeVocabulary()));

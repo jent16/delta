@@ -2,6 +2,8 @@
 // app.js fills these in at start-up. Screens import this object instead of importing app.js, so
 // the arrows between files point one way: app -> screens -> shared pieces, never back.
 export const ctx = {
+  /** Return to the sign-in page (after signing out, deleting the account, or the session ending). */
+  signedOut: async () => {},
   refresh: async () => {},
   navigate: (_view, _list) => {},
   openApplication: (_id) => {},

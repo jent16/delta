@@ -1,16 +1,18 @@
 // Start-up and the frame around every screen: the top bar, which screen is showing, and the keyboard shortcuts.
 // Screens live in views/. Shared pieces live in lib/. Nothing in those folders imports this file.
 
-import { api, describeError } from "./lib/api.js";
+import { api, describeError, whenSignedOut } from "./lib/api.js";
 import { $, clear, h, icon } from "./lib/dom.js";
 import { ctx } from "./lib/ctx.js";
 import { crossfade, placeKnobs, reduced, reveal, revealColor, staggerIn } from "./lib/motion.js";
 import { DURATION, STAGGER } from "./lib/motion-math.js";
 import { closeOverlays, overlayIsOpen } from "./lib/overlay.js";
-import { setVocab, state } from "./lib/state.js";
+import { resetState, setVocab, state } from "./lib/state.js";
 import { applyLook, DESIGNS, look, MODES, setLook } from "./lib/theme.js";
 import { closeMenu, menuIsOpen, openMenu, showMessage } from "./lib/ui.js";
 import { applicationsView, leaveApplications } from "./views/applications.js";
+import { showAuth } from "./views/auth.js";
+import { profileView } from "./views/profile.js";
 import { companiesLeave, companiesView } from "./views/companies.js";
 import { dashboardView } from "./views/dashboard.js";
 import { insightsView } from "./views/insights.js";
@@ -20,19 +22,30 @@ import { openNewPerson, openPerson } from "./views/person.js";
 import { peopleLeave, peopleView } from "./views/people.js";
 import { remindersView } from "./views/reminders.js";
 
-const SCREENS = { dashboard: dashboardView, applications: applicationsView, companies: companiesView, people: peopleView, insights: insightsView, reminders: remindersView };
+const SCREENS = { dashboard: dashboardView, applications: applicationsView, companies: companiesView, people: peopleView, insights: insightsView, reminders: remindersView, profile: profileView };
 
 let badgeCount = 0;
 let renderToken = 0;
 
 // ---------- the top bar ----------
 function renderTop() {
+  const brand = h("div", { class: "brand" }, h("span", { class: "brand-mark" }, icon("delta", 16)), "Delta");
+  if (!state.account) { clear($("#topbar")).append(brand); return; } // signed out: nothing but the name
   const nav = (ic, name, view) => h("button", { class: "nav-item", type: "button", "aria-current": state.view === view ? "page" : null, onclick: () => navigate(view, view === "applications" ? "all" : undefined) },
     icon(ic, 15), name, view === "reminders" ? h("span", { class: "badge", id: "badge", text: String(badgeCount), hidden: badgeCount === 0 }) : null);
   clear($("#topbar")).append(
-    h("div", { class: "brand" }, h("span", { class: "brand-mark" }, icon("delta", 16)), "Delta"),
+    brand,
     h("nav", { class: "nav", "aria-label": "Main", "data-knob": "nav" }, nav("grid", "Dashboard", "dashboard"), nav("rows", "Applications", "applications"), nav("building", "Companies", "companies"), nav("person", "People", "people"), nav("chart", "Insights", "insights"), nav("bell", "Reminders", "reminders")),
-    h("button", { class: "btn small appearance", type: "button", "aria-haspopup": "menu", "aria-label": "Appearance: mode and design", onclick: (e) => { e.stopPropagation(); appearanceMenu(e.currentTarget); } }, icon("palette", 15), "Appearance"));
+    h("button", { class: "btn small appearance", type: "button", "aria-haspopup": "menu", "aria-label": "Appearance: mode and design", onclick: (e) => { e.stopPropagation(); appearanceMenu(e.currentTarget); } }, icon("palette", 15), "Appearance"),
+    h("button", { class: "btn small account-btn", type: "button", "aria-haspopup": "menu", "aria-label": `Account: ${state.account.name}`, "aria-current": state.view === "profile" ? "page" : null, onclick: (e) => { e.stopPropagation(); accountMenu(e.currentTarget); } },
+      h("span", { class: "avatar", text: (state.account.name.trim()[0] ?? "?").toUpperCase(), "aria-hidden": "true" }), h("span", { class: "acct-name", text: state.account.name })));
+}
+
+function accountMenu(anchor) {
+  openMenu(anchor, state.account.email, [
+    { label: "Profile", run: () => navigate("profile") },
+    { label: "Sign out", run: async () => { try { await api.signOut(); } catch { /* back to sign-in either way */ } signedOut(); } },
+  ]);
 }
 
 function appearanceMenu(anchor) {
@@ -116,17 +129,51 @@ document.addEventListener("keydown", (e) => {
 });
 window.addEventListener("hashchange", () => {
   const view = location.hash.slice(1);
-  if (view in SCREENS && view !== state.view) navigate(view);
+  if (state.account && view in SCREENS && view !== state.view) navigate(view);
 });
+
+// ---------- signing in and out ----------
+let leaving = false;
+/** Back to the sign-in page, forgetting everything about whoever was here. (Called after sign-out, account deletion, or the session ending.) */
+async function signedOut() {
+  if (leaving) return;
+  leaving = true;
+  try {
+    renderToken++; // anything still loading for the old screen is thrown away
+    closeOverlays();
+    closeMenu();
+    resetState();
+    leaveApplications(); companiesLeave(); peopleLeave();
+    clear($("#bulk")).hidden = true;
+    renderTop();
+    const info = await api.authState().catch(() => ({ account: null, canSignUp: true, claimsExistingData: false }));
+    if (info.account) { state.account = info.account; await boot(); } // still signed in after all (e.g. the 401 was a blip)
+    else showAuth(info, async (account) => { state.account = account; await boot(); });
+  } finally { leaving = false; }
+}
+ctx.signedOut = signedOut;
+whenSignedOut(() => { if (state.account) signedOut(); });
+
+async function boot() {
+  const start = location.hash.slice(1);
+  state.view = start in SCREENS ? start : "dashboard";
+  renderTop();
+  try {
+    setVocab(await api.vocab()); // the status rules and closed lists come from the server, so they can never disagree with it
+    clear($("#view"));
+    await render("enter");
+  } catch (e) {
+    showMessage($("#view"), describeError(e), { error: true, retry: () => location.reload() });
+  }
+}
 
 // ---------- start ----------
 applyLook();
-const start = location.hash.slice(1);
-if (start in SCREENS) state.view = start;
 renderTop();
 try {
-  setVocab(await api.vocab()); // the status rules and closed lists come from the server, so they can never disagree with it
-  await render("enter");
+  const info = await api.authState();
+  if (info.account) { state.account = info.account; await boot(); }
+  else showAuth(info, async (account) => { state.account = account; await boot(); });
 } catch (e) {
   showMessage($("#view"), describeError(e), { error: true, retry: () => location.reload() });
 }

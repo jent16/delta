@@ -447,3 +447,37 @@ it, and marked alumni unless you say otherwise. It is a guess, so the toast says
 that is only an id asks you to type the name. Someone you already have, under any spelling of their
 link, is linked rather than duplicated and keeps the role they already had on that application.
 
+
+
+## 42. Accounts: the existing user is claimed, not migrated, and everything fails closed
+`user_id` has been on every table since the first migration, so accounts needed no data move: the
+"Me" row (id 1) gains an email and a password hash the first time someone signs up, and the data
+comes with it. Later sign-ups create new users. (The risk is that on a public server a stranger could
+claim it first, so the README says to claim it before exposing anything.)
+
+Choices, each for a reason:
+- **Email + password, hashed with scrypt** from Node itself: no outside service, works offline, no new
+  dependency. Cost settings are stored inside each hash so they can be raised later.
+- **A random session token in an HttpOnly, SameSite=Lax cookie; only its SHA-256 is stored.** A copy of the
+  database can't be used to sign in. Sessions slide for 30 idle days with a 90-day ceiling, and "last seen"
+  is rewritten at most every six hours rather than on every click.
+- **Fails closed.** The API installs one sign-in check for everything under `/api` except health, vocabulary
+  and the sign-in routes; a route that forgets it still can't act, because the function that names the
+  current user throws when there is no session. Passing neither `auth` nor a test user to `createApp` is an error.
+- **Cross-site requests are refused** (an `Origin` that isn't this server, or `Sec-Fetch-Site: cross-site`, on
+  anything that changes data) on top of SameSite.
+- **Wrong passwords are slowed per email** (five, then 15 minutes), including emails that have no account, and
+  an unknown email costs the same time as a wrong password and gets the same words.
+- **Changing the password signs the other browsers out; deleting an account needs the password**, backs up
+  first, and a test fills every table with two people's rows and requires that only the right ones go, so a
+  future table can't be forgotten.
+
+The profile is the user's name (on the account) plus the settings table the alumni helper already used,
+extended with program, graduation year, target roles and terms. **Resume versions are names only.** No file
+is stored: that keeps the data tiny, avoids a second place for a resume to go out of date, and nobody has to
+upload anything to the tracker or to an application. An application's resume version stays free text, so old
+rows keep working; the list powers suggestions, renaming follows onto the applications that used the name,
+and removing a name leaves them alone.
+
+Deliberately not done yet: email verification and password reset (both need to send email), limits by
+network address, and https. They matter when the app is hosted, not while it listens on `localhost`.

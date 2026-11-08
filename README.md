@@ -68,7 +68,12 @@ elsewhere.
 | `POST /api/contacts/:id/events`, `POST /api/contacts/:id/links`, `DELETE /api/contacts/:id/links/:applicationId` | the dated log (`{kind, on?, note?}`), and linking a person to an application with a role |
 | `GET /api/applications/:id/contacts` | the people linked to an application, other people at its company, and the alumni search links |
 | `POST /api/contacts/from-profile` | `{url, applicationId?, name?, relationship?, role?}`: add the person behind a pasted LinkedIn profile link (201), or link someone you already have (200); the name comes from the link unless given |
-| `GET/PATCH /api/settings` | preferences; today `school` (blank puts the default back) |
+| `GET/PATCH /api/settings` | preferences: `school`, `program`, `gradYear`, `targetRoles`, `targetTerms` (empty puts the default back) |
+| `GET/PATCH /api/profile` | your profile: `{profile, resumeVersions, unlisted}`; PATCH takes `name` and any of the settings above, all or nothing. The email is read-only |
+| `POST /api/resume-versions`, `PATCH/DELETE /api/resume-versions/:id` | the names of your resume versions (no files). Renaming renames the same text on your applications; removing leaves them alone |
+| `GET /api/auth/state` | public: `{account, canSignUp, claimsExistingData}` |
+| `POST /api/auth/signup`, `/signin`, `/signout` | public. Sign-up (`{name, email, password}`) or sign-in sets an HttpOnly session cookie. Five wrong passwords lock an email for 15 minutes (429) |
+| `POST /api/auth/change-password`, `/delete-account` | `{current, next}` signs every other browser out; `{password}` deletes the account and all its data, after a `pre-delete-account` backup |
 | `POST /api/import/linkedin/preview`, `/commit` | `{csv, accept?}`: the text of `Connections.csv`, and `accept` maps a person's key to the company you confirmed for them. Preview writes nothing; commit takes a `pre-import` backup first |
 | `GET /api/reminders` | follow-ups due, upcoming/missed deadlines, applications gone quiet; `?days=7&staleDays=21&list=<id>` |
 | `GET /api/export`, `/api/export.csv` | your data as a download |
@@ -134,9 +139,31 @@ writes through the same API as everything else.
 
 The page is served with a strict Content-Security-Policy (only its own scripts and
 styles, no outside requests), and the code never turns text into HTML, so a company
-named `<script>` is shown as text. `src/web.test.ts` enforces both. There is no
-login yet, so the server listens on your own machine only (`localhost`); set
-`TRACKER_HOST` only if you mean to open it up.
+named `<script>` is shown as text. `src/web.test.ts` enforces both. See *Accounts and
+profile* below for sign-in.
+
+### Accounts and profile
+
+Every row already belonged to a user; now people sign in as one. The first time you open the
+tracker it offers **Create your account**, and that account takes over the data already in it
+(your existing applications stay yours). Later sign-ups start empty and can never see yours.
+
+- **Sign-in** is email + password. Passwords are stored only as scrypt hashes; a session is a
+  random token in an HttpOnly, SameSite cookie, of which only a SHA-256 is stored. A session ends
+  after 30 idle days, or 90 days at most. Changing your password signs every other browser out.
+  Wrong passwords are slowed down (five tries, then 15 minutes), and an unknown email and a wrong
+  password get the same answer.
+- **Profile** (the account menu, top right): name, school, program, graduation year, the roles and
+  terms you want, and your **resume versions**. Those are just names ("SWE-v3", with an optional
+  note), not files: they become suggestions in an application's *Resume version* box, and the
+  *Already on your applications* chips add names you have already typed. Insights compares them.
+- **Delete account** needs your password, takes a `pre-delete-account` backup first, then removes
+  your rows from every table (a test checks that no table is forgotten).
+- Setting `TRACKER_ALLOW_SIGNUP=false` stops new accounts (claiming the existing data is still
+  allowed until someone does). The server still listens on `localhost` only: a password over plain
+  http is readable by anyone on the network, so only set `TRACKER_HOST` behind https, with
+  `TRACKER_SECURE_COOKIES=1`. **Create your account before exposing it anywhere**, because
+  whoever signs up first takes the existing data.
 
 ### Backups, restore and export
 

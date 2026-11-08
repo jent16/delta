@@ -9,7 +9,7 @@ import { toIsoDate } from "../domain/dates.ts";
 import { NotFoundError, ValidationError } from "../domain/errors.ts";
 import { nameFromProfileUrl, normalizeProfileUrl } from "../domain/linkedin.ts";
 import type { ApplicationRepository, ContactRepository, SettingsRepository } from "../domain/ports.ts";
-import { DEFAULT_SETTINGS, parseSettingsPatch } from "../domain/settings.ts";
+import { parseSettingsPatch, settingsFromStored } from "../domain/settings.ts";
 import type { Settings } from "../domain/settings.ts";
 import type { Clock } from "./applications.ts";
 
@@ -41,7 +41,7 @@ export interface SettingsService {
 
 export function createSettingsService(deps: { settings: SettingsRepository }): SettingsService {
   const { settings } = deps;
-  const get = (userId: number): Settings => ({ school: settings.all(userId).school ?? DEFAULT_SETTINGS.school });
+  const get = (userId: number): Settings => settingsFromStored(settings.all(userId));
   return {
     get,
     edit(userId, raw) {

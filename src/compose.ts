@@ -14,8 +14,12 @@ import { createApplicationRepository } from "./repositories/applications.ts";
 import { createCompanyRepository } from "./repositories/companies.ts";
 import { createContactRepository } from "./repositories/contacts.ts";
 import { createSettingsRepository } from "./repositories/settings.ts";
+import { createResumeVersionRepository } from "./repositories/resume-versions.ts";
+import { createSessionRepository, createUserRepository } from "./repositories/users.ts";
+import { createScryptHasher } from "./domain/password.ts";
 import { createContactImportLedger, createImportLedger } from "./repositories/import-ledger.ts";
 import { createListRepository } from "./repositories/lists.ts";
+import { createAuthService, createProfileService } from "./services/accounts.ts";
 import { createApplicationService } from "./services/applications.ts";
 import { createCompanyService } from "./services/companies.ts";
 import { createContactService, createSettingsService } from "./services/contacts.ts";
@@ -68,5 +72,16 @@ export function composeTracker(opts: { dataDir: string; env?: NodeJS.ProcessEnv 
     directory: createSimplifyDirectory({ cacheFile: join(opts.dataDir, "cache", "companies.json") }),
   });
   const insights = createInsightsService({ applications: applicationRepo, lists: listRepo, contacts: contactRepo, clock });
-  return { db, dbFile, backupDir, applications, lists, imports, exports, companies, contacts, settings, linkedin, insights, migrationsApplied, preMigrationBackup: preMigrationBackup as BackupInfo | null };
+  const users = createUserRepository(db);
+  // New accounts can be switched off (TRACKER_ALLOW_SIGNUP=false) once you have made yours, e.g. before putting this on a server.
+  const auth = createAuthService({
+    users,
+    sessions: createSessionRepository(db),
+    hasher: createScryptHasher(),
+    clock,
+    allowSignup: env.TRACKER_ALLOW_SIGNUP !== "false",
+    beforeDelete: () => { createBackup(db, backupDir, { label: "pre-delete-account" }); },
+  });
+  const profile = createProfileService({ users, settings: createSettingsRepository(db), versions: createResumeVersionRepository(db), clock });
+  return { db, dbFile, backupDir, applications, lists, imports, exports, companies, contacts, settings, linkedin, insights, auth, profile, migrationsApplied, preMigrationBackup: preMigrationBackup as BackupInfo | null };
 }

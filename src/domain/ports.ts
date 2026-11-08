@@ -9,6 +9,7 @@ import type { CompanySummary } from "./company-record.ts";
 import type { Contact, ContactEvent, ContactFields, ContactPatch, ContactQuery, ContactSummary, LinkedApplication, LinkedContact, LinkRole, NewContactEvent } from "./contact.ts";
 import type { ExportedApplication } from "./export.ts";
 import type { ListFilter, ListPatch, NewList, SavedList } from "./list.ts";
+import type { ResumeVersion } from "./settings.ts";
 
 export interface ApplicationRepository {
   /** Inserts the application and its first status event atomically. */
@@ -77,6 +78,61 @@ export interface SettingsRepository {
   all(userId: number): Record<string, string>;
   /** A null value removes the row, so the default applies again. */
   set(userId: number, key: string, value: string | null): void;
+}
+
+/** An account row as stored. `email` and `passwordHash` are null for the one legacy user nobody has claimed yet. */
+export interface UserRecord {
+  id: number;
+  name: string;
+  email: string | null;
+  emailKey: string | null;
+  passwordHash: string | null;
+  createdAt: string;
+  lastLoginAt: string | null;
+}
+
+export interface UserRepository {
+  findById(id: number): UserRecord | null;
+  findByEmailKey(key: string): UserRecord | null;
+  /**
+   * Creates an account. If an unclaimed user exists (one with no email, i.e. the "Me" user that owns the data
+   * from before there were accounts), that user is claimed instead, so the existing data comes with the account.
+   * One transaction, so two sign-ups at once can't both claim it.
+   */
+  register(fields: { name: string; email: string; emailKey: string; passwordHash: string }, now: string): { user: UserRecord; claimed: boolean };
+  /** True while a user with no email exists, i.e. the next sign-up will take over the existing data. */
+  hasUnclaimed(): boolean;
+  setName(id: number, name: string): void;
+  setPassword(id: number, passwordHash: string): void;
+  touchLogin(id: number, now: string): void;
+  /** Permanently removes the account and every row that belongs to it. */
+  deleteAccount(id: number): void;
+}
+
+export interface SessionRecord { userId: number; createdAt: string; lastSeenAt: string; expiresAt: string }
+
+export interface SessionRepository {
+  create(tokenHash: string, userId: number, now: string, expiresAt: string): void;
+  find(tokenHash: string): SessionRecord | null;
+  touch(tokenHash: string, now: string, expiresAt: string): void;
+  remove(tokenHash: string): void;
+  /** Signs the user out everywhere, except (optionally) the session making the request. */
+  removeForUser(userId: number, exceptTokenHash?: string): void;
+  removeExpired(now: string): void;
+}
+
+/** The names of your resume versions (no files). */
+export interface ResumeVersionRepository {
+  all(userId: number): ResumeVersion[];
+  findById(userId: number, id: number): ResumeVersion | null;
+  findByName(userId: number, name: string): ResumeVersion | null;
+  insert(userId: number, name: string, note: string | null, now: string): ResumeVersion;
+  /** Renames, and renames the same text on every application that used the old name, atomically. */
+  update(userId: number, id: number, patch: { name?: string; note?: string | null }): ResumeVersion | null;
+  /** Removes the name from the list. Applications keep their text. */
+  remove(userId: number, id: number): boolean;
+  /** Distinct resume-version text on applications that is not (yet) in the list, with how many applications use each. */
+  unlisted(userId: number): { name: string; uses: number }[];
 }
 
 export interface ListRepository {

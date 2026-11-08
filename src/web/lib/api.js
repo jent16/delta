@@ -14,11 +14,19 @@ export function describeError(err) {
   if (!(err instanceof ApiError)) return "Something went wrong.";
   const b = err.body;
   if (err.status === 0) return "Can't reach the tracker. Is it still running?";
+  if (b?.error === "validation" && (b.issues ?? []).some((i) => (i.field === "password" || i.field === "current") && i.message === "is not right")) return "That password isn't right.";
   if (b?.error === "validation") return (b.issues ?? []).map((i) => (i.field && i.field !== "(body)" ? `${i.field}: ${i.message}` : i.message)).join(". ") || "That wasn't valid.";
   if (b?.error === "invalid_transition" || b?.error === "duplicate" || b?.error === "company_exists") return b.message;
+  if (b?.error === "unauthenticated" || b?.error === "rate_limited" || b?.error === "signups_closed") return b.message;
+  if (b?.error === "bad_origin") return "That request didn't come from this page, so it was refused.";
   if (b?.error === "not_found") return `That ${b.what ?? "item"} no longer exists.`;
   return "The tracker had a problem with that. Nothing was changed.";
 }
+
+// When the server says "sign in" (the session ended, or was ended from another browser), the app shows the sign-in page.
+// The sign-in calls themselves are exempt: a wrong password is a normal answer, not a lost session.
+let onUnauthorized = () => {};
+export const whenSignedOut = (fn) => { onUnauthorized = fn; };
 
 async function request(method, path, body, signal) {
   let res;
@@ -36,6 +44,7 @@ async function request(method, path, body, signal) {
   const text = await res.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { /* not JSON */ }
+  if (res.status === 401 && !path.startsWith("/api/auth/sign")) onUnauthorized();
   if (!res.ok) throw new ApiError(res.status, data, `${method} ${path} -> ${res.status}`);
   return data;
 }
@@ -50,6 +59,17 @@ const scope = (listId) => (listId && listId !== "all" ? { list: listId } : {});
 
 export const api = {
   vocab: () => request("GET", "/api/vocab"),
+  authState: () => request("GET", "/api/auth/state"),
+  signUp: (body) => request("POST", "/api/auth/signup", body),
+  signIn: (body) => request("POST", "/api/auth/signin", body),
+  signOut: () => request("POST", "/api/auth/signout"),
+  changePassword: (current, next) => request("POST", "/api/auth/change-password", { current, next }),
+  deleteAccount: (password) => request("POST", "/api/auth/delete-account", { password }),
+  profile: () => request("GET", "/api/profile"),
+  editProfile: (patch) => request("PATCH", "/api/profile", patch).then((r) => r.profile),
+  addResumeVersion: (name, note) => request("POST", "/api/resume-versions", { name, ...(note ? { note } : {}) }),
+  editResumeVersion: (id, patch) => request("PATCH", `/api/resume-versions/${id}`, patch),
+  removeResumeVersion: (id) => request("DELETE", `/api/resume-versions/${id}`),
   lists: () => request("GET", "/api/lists").then((r) => r.lists),
   pipeline: (listId) => request("GET", `/api/pipeline${query(scope(listId))}`),
   stats: (listId) => request("GET", `/api/stats${query(scope(listId))}`),

@@ -265,3 +265,20 @@ test("a path named 'search' is never read as a company id", async (t) => {
   assert.equal((await api.call("GET", "/api/companies/search?q=zzz")).status, 200);
   assert.equal((await api.call("GET", "/api/companies/search")).status, 400); // missing q is the search's own validation error
 });
+
+test("GET /api/breakdowns returns the tables, the sample threshold and stage times, and honours list scoping", async (t) => {
+  const api = await startApi();
+  t.after(() => api.close());
+  const a = (await api.call("POST", "/api/applications", { company: "Stripe", roleTitle: "SWE", roleFunction: "SWE", appliedOn: "2026-09-01", source: "Referral" })).body;
+  await api.call("POST", `/api/applications/${a.id}/status`, { status: "interview", on: "2026-09-10" });
+  await api.call("POST", "/api/applications", { company: "Shopify", roleTitle: "PM", roleFunction: "PM", appliedOn: "2026-09-02" });
+  const r = await api.call("GET", "/api/breakdowns");
+  assert.equal(r.status, 200);
+  assert.equal(r.body.minSample, 10);
+  assert.deepEqual(r.body.breakdowns.function.map((x: { key: string; sent: number }) => [x.key, x.sent]), [["PM", 1], ["SWE", 1]]);
+  assert.deepEqual(r.body.breakdowns.source.map((x: { key: string }) => x.key), ["Referral", "Unknown"]);
+  assert.deepEqual(r.body.timeInStage.find((s: { stage: string }) => s.stage === "applied"), { stage: "applied", median: 9, samples: 1 });
+  const pm = (await api.call("GET", "/api/lists")).body.lists.find((l: { name: string }) => l.name === "PM");
+  assert.deepEqual((await api.call("GET", `/api/breakdowns?list=${pm.id}`)).body.breakdowns.function.map((x: { key: string }) => x.key), ["PM"]);
+  assert.equal((await api.call("GET", "/api/breakdowns?list=abc")).status, 400);
+});

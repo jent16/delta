@@ -10,6 +10,8 @@ import { narrowQuery } from "../domain/list.ts";
 import type { ApplicationRepository, ListRepository } from "../domain/ports.ts";
 import { computeReminders, DEFAULT_REMINDERS } from "../domain/reminders.ts";
 import type { Reminders } from "../domain/reminders.ts";
+import { computeBreakdowns, computeTimeInStage, MIN_SAMPLE } from "../domain/breakdowns.ts";
+import type { BreakdownRow, Dimension, StageTime } from "../domain/breakdowns.ts";
 import { computeProgress, historyDates } from "../domain/progress.ts";
 import type { Progress } from "../domain/progress.ts";
 import { computeStats } from "../domain/stats.ts";
@@ -28,6 +30,8 @@ export interface PipelineRow {
 export interface InsightsService {
   stats(userId: number, raw: Record<string, unknown>): { scope: { list: { id: number; name: string } | null }; stats: Stats };
   reminders(userId: number, raw: Record<string, unknown>): { scope: { list: { id: number; name: string } | null }; reminders: Reminders };
+  /** Where replies come from (by function, sector, source, resume version) and how long each stage takes. Same scoping as stats. */
+  breakdowns(userId: number, raw: Record<string, unknown>): { scope: { list: { id: number; name: string } | null }; minSample: number; breakdowns: Record<Dimension, BreakdownRow[]>; timeInStage: StageTime[] };
   /** The table: each application with how far it got and its key dates, most recent activity first. Same scoping and filters as stats. */
   pipeline(userId: number, raw: Record<string, unknown>): { scope: { list: { id: number; name: string } | null }; rows: PipelineRow[] };
 }
@@ -57,6 +61,12 @@ export function createInsightsService(deps: { applications: ApplicationRepositor
     stats(userId, raw) {
       const { query, list } = scope(userId, raw);
       return { scope: { list }, stats: computeStats(query ? applications.withHistory(userId, query) : []) };
+    },
+
+    breakdowns(userId, raw) {
+      const { query, list } = scope(userId, raw);
+      const rows = query ? applications.withHistory(userId, query) : [];
+      return { scope: { list }, minSample: MIN_SAMPLE, breakdowns: computeBreakdowns(rows), timeInStage: computeTimeInStage(rows) };
     },
 
     pipeline(userId, raw) {

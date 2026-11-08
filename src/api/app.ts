@@ -160,6 +160,10 @@ export function createApp(deps: AppDeps) {
     res.json(insights.pipeline(currentUserId(req), req.query as Record<string, unknown>));
   });
 
+  app.get("/api/breakdowns", (req, res) => {
+    res.json(insights.breakdowns(currentUserId(req), req.query as Record<string, unknown>));
+  });
+
   app.get("/api/stats", (req, res) => {
     res.json(insights.stats(currentUserId(req), req.query as Record<string, unknown>));
   });

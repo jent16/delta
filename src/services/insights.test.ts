@@ -145,3 +145,36 @@ test("pipeline: when the application's own applied date and its history disagree
   t.service.edit(1, a.id, { appliedOn: "2026-09-02" }); // corrected by hand; the history event still says the 1st
   assert.equal(t.insights.pipeline(1, {}).rows[0]!.appliedOn, "2026-09-02");
 });
+
+test("breakdowns: scoped like stats (one saved list, or everything), with the sample-size threshold and per-stage times", () => {
+  const t = seeded();
+  const all = t.insights.breakdowns(1, {});
+  assert.equal(all.minSample, 10);
+  assert.equal(all.scope.list, null);
+  assert.deepEqual(all.breakdowns.function.map((r) => [r.key, r.sent, r.interviews]), [["SWE", 2, 1], ["PM", 1, 0]]);
+  assert.equal(all.timeInStage.find((s) => s.stage === "applied")!.samples, 1); // Stripe went applied -> interview
+  const pm = t.insights.breakdowns(1, { list: String(list(t, "PM").id) });
+  assert.deepEqual([pm.scope.list?.name, pm.breakdowns.function.map((r) => r.key)], ["PM", ["PM"]]);
+  assert.deepEqual(t.insights.breakdowns(1, { list: String(list(t, "SWE").id), function: "PM" }).breakdowns.function, []); // a contradiction is empty
+  t.service.archive(1, t.service.list(1, { q: "figma" })[0]!.id);
+  assert.equal(t.insights.breakdowns(1, {}).breakdowns.function.reduce((n, r) => n + r.sent, 0), 2);
+});
+
+test("breakdowns by sector read the COMPANY's sector, and by source and resume read what you recorded", () => {
+  const t = makeTracker();
+  const a = t.service.add(1, { company: "Stripe", roleTitle: "SWE", roleFunction: "SWE", appliedOn: "2026-09-01", source: "Referral", resumeVersion: "v2" });
+  t.service.add(1, { company: "Stripe", roleTitle: "PM", roleFunction: "PM", appliedOn: "2026-09-02" });
+  t.service.edit(1, a.id, { sector: "Fintech" }); // set on one application; the company's, so both follow
+  const b = t.insights.breakdowns(1, {}).breakdowns;
+  assert.deepEqual(b.sector.map((r) => [r.key, r.sent]), [["Fintech", 2]]);
+  assert.deepEqual(b.source.map((r) => [r.key, r.sent]), [["Referral", 1], ["Unknown", 1]]);
+  assert.deepEqual(b.resume.map((r) => [r.key, r.sent]), [["v2", 1], ["Unknown", 1]]);
+});
+
+test("breakdowns never include another user's applications, and a bad list is an error", () => {
+  const t = seeded();
+  t.db.prepare("INSERT INTO users (id, name, created_at) VALUES (2, 'Other', 'now')").run();
+  assert.deepEqual(t.insights.breakdowns(2, {}).breakdowns.function, []);
+  assert.throws(() => t.insights.breakdowns(1, { list: "999" }), NotFoundError);
+  assert.throws(() => t.insights.breakdowns(1, { list: "abc" }), ValidationError);
+});

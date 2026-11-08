@@ -17,6 +17,18 @@ export class ValidationError extends Error {
   }
 }
 
+/** Renaming a company to a name that another of your companies already has. The caller can offer to merge them. */
+export class CompanyExistsError extends Error {
+  readonly existingId: number;
+  readonly existingName: string;
+  constructor(existingId: number, existingName: string) {
+    super(`you already have a company called "${existingName}"`);
+    this.name = "CompanyExistsError";
+    this.existingId = existingId;
+    this.existingName = existingName;
+  }
+}
+
 export class NotFoundError extends Error {
   readonly what: string;
   constructor(what: string) {

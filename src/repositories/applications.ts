@@ -6,6 +6,7 @@
 import type { Application, ApplicationPatch, ApplicationQuery, NewApplication, StatusChange, StatusEvent } from "../domain/application.ts";
 import type { ApplicationRepository } from "../domain/ports.ts";
 import type { Db } from "../db/connection.ts";
+import { dropIfUnused, ensureCompany } from "./companies.ts";
 import type { ExportedApplication } from "../domain/export.ts";
 import type { RoleFunction, Sector } from "../domain/vocab.ts";
 import type { Status } from "../domain/status.ts";
@@ -13,10 +14,11 @@ import type { Status } from "../domain/status.ts";
 interface AppRow {
   id: number;
   user_id: number;
-  company: string;
+  company_id: number;
+  company: string;      // from the joined company, not stored on the application
   role_title: string;
   role_function: string;
-  sector: string | null;
+  sector: string | null; // likewise: the company's
   location: string | null;
   term: string | null;
   url: string | null;
@@ -45,6 +47,7 @@ interface EventRow {
 const toApplication = (r: AppRow): Application => ({
   id: r.id,
   userId: r.user_id,
+  companyId: r.company_id,
   company: r.company,
   roleTitle: r.role_title,
   roleFunction: r.role_function as RoleFunction,
@@ -76,11 +79,11 @@ const toEvent = (r: EventRow): StatusEvent => ({
 
 // Column names come from this fixed map, never from request data, so building
 // an UPDATE from a patch can't be steered into arbitrary SQL.
-const PATCH_COLUMNS: Record<keyof ApplicationPatch, string> = {
-  company: "company",
+// `company` and `sector` are not columns of applications any more: they belong to the company, so a patch
+// that carries them is handled separately (move to a company / set that company's sector).
+const PATCH_COLUMNS: Record<Exclude<keyof ApplicationPatch, "company" | "sector">, string> = {
   roleTitle: "role_title",
   roleFunction: "role_function",
-  sector: "sector",
   location: "location",
   term: "term",
   url: "url",
@@ -93,36 +96,39 @@ const PATCH_COLUMNS: Record<keyof ApplicationPatch, string> = {
   notes: "notes",
 };
 
+// every read of an application joins its company, which is where the name and sector live
+const APP_SELECT = "SELECT a.*, c.name AS company, c.sector AS sector FROM applications a JOIN companies c ON c.id = a.company_id";
+
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 const MAX_ROWS = 500;
 
 // One place that turns a query into SQL, shared by list() and count() so a
 // list's number can never disagree with the rows it shows.
 function whereClause(userId: number, query: ApplicationQuery): { sql: string; params: (string | number)[] } {
-  const where: string[] = ["user_id = ?"];
+  const where: string[] = ["a.user_id = ?"];
   const params: (string | number)[] = [userId];
-  if (!query.includeArchived) where.push("archived_at IS NULL");
+  if (!query.includeArchived) where.push("a.archived_at IS NULL");
   const anyOf = (column: string, values: readonly string[] | undefined) => {
     if (!values?.length) return;
     where.push(`${column} IN (${values.map(() => "?").join(", ")})`);
     params.push(...values);
   };
-  anyOf("status", query.statuses);
-  anyOf("role_function", query.roleFunctions);
-  anyOf("sector", query.sectors);
+  anyOf("a.status", query.statuses);
+  anyOf("a.role_function", query.roleFunctions);
+  anyOf("c.sector", query.sectors);
   // closed list in the domain (parseApplicationQuery), mapped to column names here — never request text in SQL
-  const MISSING_COLUMNS = { sector: "sector", term: "term", location: "location", url: "url" } as const;
+  const MISSING_COLUMNS = { sector: "c.sector", term: "a.term", location: "a.location", url: "a.url" } as const;
   for (const field of query.missing ?? []) where.push(`${MISSING_COLUMNS[field]} IS NULL`);
   if (query.q) {
     const like = `%${escapeLike(query.q)}%`;
-    where.push("(company LIKE ? ESCAPE '\\' OR role_title LIKE ? ESCAPE '\\' OR location LIKE ? ESCAPE '\\' OR notes LIKE ? ESCAPE '\\')");
+    where.push("(c.name LIKE ? ESCAPE '\\' OR a.role_title LIKE ? ESCAPE '\\' OR a.location LIKE ? ESCAPE '\\' OR a.notes LIKE ? ESCAPE '\\')");
     params.push(like, like, like, like);
   }
   return { sql: where.join(" AND "), params };
 }
 
 export function createApplicationRepository(db: Db): ApplicationRepository {
-  const selectOne = db.prepare("SELECT * FROM applications WHERE id = ? AND user_id = ?");
+  const selectOne = db.prepare(`${APP_SELECT} WHERE a.id = ? AND a.user_id = ?`);
 
   const findById = (userId: number, id: number): Application | null => {
     const row = selectOne.get(id, userId) as AppRow | undefined;
@@ -131,7 +137,7 @@ export function createApplicationRepository(db: Db): ApplicationRepository {
 
   const withHistory = (userId: number, query: ApplicationQuery): ExportedApplication[] => {
     const { sql, params } = whereClause(userId, query);
-    const apps = (db.prepare(`SELECT * FROM applications WHERE ${sql} ORDER BY id`).all(...params) as AppRow[]).map(toApplication);
+    const apps = (db.prepare(`${APP_SELECT} WHERE ${sql} ORDER BY a.id`).all(...params) as AppRow[]).map(toApplication);
     // one query for the user's events, grouped in memory, instead of one query per application
     const events = db
       .prepare("SELECT e.* FROM status_events e JOIN applications a ON a.id = e.application_id WHERE a.user_id = ? ORDER BY e.id")
@@ -152,13 +158,15 @@ export function createApplicationRepository(db: Db): ApplicationRepository {
       const f = app.fields;
       // Two writes that must succeed or fail together: wrapped in one transaction.
       const id = db.transaction(() => {
+        // find or create the company in the SAME transaction: if anything below fails, no empty company is left behind
+        const companyId = ensureCompany(db, userId, f.company, f.sector, now);
         const res = db
           .prepare(
-            `INSERT INTO applications (user_id, company, role_title, role_function, sector, location, term, url, source,
+            `INSERT INTO applications (user_id, company_id, role_title, role_function, location, term, url, source,
                applied_on, deadline_on, follow_up_on, resume_version, compensation, notes, status, dedupe_key, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
-          .run(userId, f.company, f.roleTitle, f.roleFunction, f.sector, f.location, f.term, f.url, f.source,
+          .run(userId, companyId, f.roleTitle, f.roleFunction, f.location, f.term, f.url, f.source,
             f.appliedOn, f.deadlineOn, f.followUpOn, f.resumeVersion, f.compensation, f.notes, app.status, dedupeKey, now, now);
         const newId = Number(res.lastInsertRowid);
         db.prepare("INSERT INTO status_events (application_id, status, occurred_on, note, created_at) VALUES (?, ?, ?, NULL, ?)").run(
@@ -171,7 +179,7 @@ export function createApplicationRepository(db: Db): ApplicationRepository {
 
     findByDedupeKey(userId, key) {
       const row = db
-        .prepare("SELECT * FROM applications WHERE user_id = ? AND dedupe_key = ? AND archived_at IS NULL ORDER BY id LIMIT 1")
+        .prepare(`${APP_SELECT} WHERE a.user_id = ? AND a.dedupe_key = ? AND a.archived_at IS NULL ORDER BY a.id LIMIT 1`)
         .get(userId, key) as AppRow | undefined;
       return row ? toApplication(row) : null;
     },
@@ -179,31 +187,46 @@ export function createApplicationRepository(db: Db): ApplicationRepository {
     list(userId, query: ApplicationQuery) {
       const { sql, params } = whereClause(userId, query);
       const rows = db
-        .prepare(`SELECT * FROM applications WHERE ${sql} ORDER BY updated_at DESC, id DESC LIMIT ${MAX_ROWS}`)
+        .prepare(`${APP_SELECT} WHERE ${sql} ORDER BY a.updated_at DESC, a.id DESC LIMIT ${MAX_ROWS}`)
         .all(...params) as AppRow[];
       return rows.map(toApplication);
     },
 
     count(userId, query: ApplicationQuery) {
       const { sql, params } = whereClause(userId, query);
-      return (db.prepare(`SELECT COUNT(*) AS n FROM applications WHERE ${sql}`).get(...params) as { n: number }).n;
+      return (db.prepare(`SELECT COUNT(*) AS n FROM applications a JOIN companies c ON c.id = a.company_id WHERE ${sql}`).get(...params) as { n: number }).n;
     },
 
     update(userId, id, patch, dedupeKey, now) {
-      if (!findById(userId, id)) return null;
-      const sets: string[] = [];
-      const params: (string | number | null)[] = [];
-      for (const key of Object.keys(patch) as (keyof ApplicationPatch)[]) {
-        sets.push(`${PATCH_COLUMNS[key]} = ?`);
-        params.push(patch[key] ?? null);
-      }
-      if (dedupeKey !== null) {
-        sets.push("dedupe_key = ?");
-        params.push(dedupeKey);
-      }
-      sets.push("updated_at = ?");
-      params.push(now, id, userId);
-      db.prepare(`UPDATE applications SET ${sets.join(", ")} WHERE id = ? AND user_id = ?`).run(...params);
+      const current = findById(userId, id);
+      if (!current) return null;
+      db.transaction(() => {
+        const sets: string[] = [];
+        const params: (string | number | null)[] = [];
+        let companyId = current.companyId;
+        if (patch.company !== undefined) {
+          // naming a different company MOVES this application to it (creating it if new); the old company is
+          // tidied away if that was its last application. To rename a company itself, use the company.
+          companyId = ensureCompany(db, userId, patch.company, null, now);
+          sets.push("company_id = ?");
+          params.push(companyId);
+        }
+        for (const key of Object.keys(patch) as (keyof ApplicationPatch)[]) {
+          if (key === "company" || key === "sector") continue;
+          sets.push(`${PATCH_COLUMNS[key]} = ?`);
+          params.push(patch[key] ?? null);
+        }
+        if (dedupeKey !== null) {
+          sets.push("dedupe_key = ?");
+          params.push(dedupeKey);
+        }
+        sets.push("updated_at = ?");
+        params.push(now, id, userId);
+        db.prepare(`UPDATE applications SET ${sets.join(", ")} WHERE id = ? AND user_id = ?`).run(...params);
+        // the sector belongs to the company, so this changes it for every application there
+        if (patch.sector !== undefined) db.prepare("UPDATE companies SET sector = ?, updated_at = ? WHERE id = ? AND user_id = ?").run(patch.sector, now, companyId, userId);
+        if (companyId !== current.companyId) dropIfUnused(db, current.companyId);
+      })();
       return findById(userId, id);
     },
 
@@ -256,23 +279,27 @@ export function createApplicationRepository(db: Db): ApplicationRepository {
       return withHistory(userId, query);
     },
 
-    companyNames(userId) {
-      return db
-        .prepare("SELECT MIN(company) AS name, COUNT(*) AS count FROM applications WHERE user_id = ? AND archived_at IS NULL GROUP BY LOWER(TRIM(company)) ORDER BY count DESC, name")
-        .all(userId) as { name: string; count: number }[];
-    },
-
     updateMany(userId, ids, patch, now) {
-      const sets: string[] = [];
-      const params: (string | number | null)[] = [];
-      for (const [key, value] of Object.entries(patch) as [keyof ApplicationPatch, string | null][]) {
-        sets.push(`${PATCH_COLUMNS[key]} = ?`); // column names come from the fixed PATCH_COLUMNS map, never from the request
-        params.push(value);
-      }
-      if (!sets.length || !ids.length) return 0;
-      sets.push("updated_at = ?");
-      params.push(now, userId, ...ids);
-      return db.prepare(`UPDATE applications SET ${sets.join(", ")} WHERE user_id = ? AND id IN (${ids.map(() => "?").join(", ")})`).run(...params).changes;
+      if (!ids.length) return 0;
+      const marks = ids.map(() => "?").join(", ");
+      return db.transaction(() => {
+        // a sector is the company's: set it on each distinct company among these applications
+        if ("sector" in patch) {
+          const companyIds = (db.prepare(`SELECT DISTINCT company_id FROM applications WHERE user_id = ? AND id IN (${marks})`).all(userId, ...ids) as { company_id: number }[]).map((r) => r.company_id);
+          const setSector = db.prepare("UPDATE companies SET sector = ?, updated_at = ? WHERE id = ? AND user_id = ?");
+          for (const companyId of companyIds) setSector.run(patch.sector ?? null, now, companyId, userId);
+        }
+        const sets: string[] = [];
+        const params: (string | number | null)[] = [];
+        for (const [key, value] of Object.entries(patch) as [keyof ApplicationPatch, string | null][]) {
+          if (key === "company" || key === "sector") continue;
+          sets.push(`${PATCH_COLUMNS[key]} = ?`); // column names come from the fixed PATCH_COLUMNS map, never from the request
+          params.push(value);
+        }
+        sets.push("updated_at = ?");
+        params.push(now, userId, ...ids);
+        return db.prepare(`UPDATE applications SET ${sets.join(", ")} WHERE user_id = ? AND id IN (${marks})`).run(...params).changes;
+      })();
     },
 
     archive(userId, id, now) {

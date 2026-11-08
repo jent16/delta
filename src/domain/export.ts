@@ -5,6 +5,7 @@
 // copy of the database itself (db/backup.ts) and is what restore uses.
 
 import type { Application, StatusEvent } from "./application.ts";
+import type { CompanySummary } from "./company-record.ts";
 import type { SavedList } from "./list.ts";
 
 export interface ExportedApplication {
@@ -13,14 +14,17 @@ export interface ExportedApplication {
   history: StatusEvent[];
 }
 
-export const EXPORT_VERSION = 1;
+// version 2: adds `companies` (each company's name and sector, stored once) and `companyId` on every application
+export const EXPORT_VERSION = 2;
 
-export function buildJsonExport(exportedAt: string, rows: ExportedApplication[], lists: SavedList[]) {
+export function buildJsonExport(exportedAt: string, rows: ExportedApplication[], lists: SavedList[], companies: CompanySummary[] = []) {
   return {
     version: EXPORT_VERSION,
     exportedAt,
+    companies: companies.map((c) => ({ id: c.id, name: c.name, sector: c.sector })),
     applications: rows.map(({ application: a, history }) => ({
       id: a.id,
+      companyId: a.companyId,
       company: a.company,
       roleTitle: a.roleTitle,
       roleFunction: a.roleFunction,

@@ -10,6 +10,9 @@ export interface CompanyCandidate {
   source: "yours" | "directory";
   /** How many of your applications use this name (only for "yours"). */
   applications?: number;
+  /** Your company's id and sector (only for "yours"): so the form can reuse the sector you already set. */
+  id?: number;
+  sector?: string | null;
 }
 
 export type MatchKind = "exact" | "prefix" | "contains" | "similar";

@@ -218,3 +218,50 @@ test("GET /api/vocab serves the status rules and closed lists, and GET /api/appl
   await api.call("POST", `/api/applications/${a.id}/status`, { status: "applied" });
   assert.deepEqual((await api.call("GET", `/api/applications/${a.id}`)).body.progress, { level: 1, outcome: null });
 });
+
+test("companies over HTTP: list, set a sector once for every application, rename, refuse a clash, merge", async (t) => {
+  const api = await startApi();
+  t.after(() => api.close());
+  const a = (await api.call("POST", "/api/applications", { company: "Stirpe", roleTitle: "SWE" })).body;
+  await api.call("POST", "/api/applications", { company: "Stirpe", roleTitle: "PM" });
+  const figma = (await api.call("POST", "/api/applications", { company: "Figma", roleTitle: "Data" })).body;
+  assert.equal(typeof a.companyId, "number");
+
+  const list = (await api.call("GET", "/api/companies")).body.companies;
+  assert.deepEqual(list.map((c: { name: string; sector: null; applications: number }) => [c.name, c.sector, c.applications]), [["Figma", null, 1], ["Stirpe", null, 2]]);
+
+  // one PATCH classifies every application at the company
+  const sector = await api.call("PATCH", `/api/companies/${a.companyId}`, { sector: "Fintech" });
+  assert.equal(sector.status, 200);
+  assert.deepEqual((await api.call("GET", "/api/applications?sector=Fintech")).body.applications.map((x: { roleTitle: string }) => x.roleTitle).sort(), ["PM", "SWE"]);
+
+  assert.equal((await api.call("PATCH", `/api/companies/${a.companyId}`, { name: "Stripe" })).body.name, "Stripe");
+  assert.equal((await api.call("GET", `/api/applications/${a.id}`)).body.application.company, "Stripe");
+
+  // a clash is a 409 that names the existing company, so the UI can offer to merge
+  const clash = await api.call("PATCH", `/api/companies/${figma.companyId}`, { name: "stripe" });
+  assert.equal(clash.status, 409);
+  assert.deepEqual([clash.body.error, clash.body.existingId, clash.body.existingName], ["company_exists", a.companyId, "Stripe"]);
+
+  assert.equal((await api.call("PATCH", `/api/companies/${a.companyId}`, { sector: "Mining" })).status, 400);
+  assert.equal((await api.call("PATCH", "/api/companies/999", { sector: "Fintech" })).status, 404);
+  assert.equal((await api.call("PATCH", "/api/companies/abc", { sector: "Fintech" })).status, 400);
+
+  const merged = await api.call("POST", `/api/companies/${figma.companyId}/merge`, { into: a.companyId });
+  assert.equal(merged.status, 200);
+  assert.deepEqual([merged.body.company.name, merged.body.company.applications, merged.body.moved], ["Stripe", 3, 1]);
+  assert.equal((await api.call("GET", "/api/companies")).body.companies.length, 1);
+  assert.equal((await api.call("POST", `/api/companies/${a.companyId}/merge`, { into: a.companyId })).status, 400);
+  // merging that would make two identical applications is refused, with the reason
+  const x = (await api.call("POST", "/api/applications", { company: "Stripe Inc", roleTitle: "SWE" })).body; // Stripe already has a SWE role
+  const refused = await api.call("POST", `/api/companies/${x.companyId}/merge`, { into: a.companyId });
+  assert.equal(refused.status, 400);
+  assert.match(refused.body.issues[0].message, /already has: SWE/);
+});
+
+test("a path named 'search' is never read as a company id", async (t) => {
+  const api = await startApi();
+  t.after(() => api.close());
+  assert.equal((await api.call("GET", "/api/companies/search?q=zzz")).status, 200);
+  assert.equal((await api.call("GET", "/api/companies/search")).status, 400); // missing q is the search's own validation error
+});

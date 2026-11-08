@@ -4,7 +4,7 @@ import type { Application, StatusEvent } from "./application.ts";
 import { buildCsvExport, buildJsonExport, csvCell } from "./export.ts";
 
 const app = (over: Partial<Application> = {}): Application => ({
-  id: 1, userId: 1, company: "Stripe", roleTitle: "SWE Intern", roleFunction: "SWE", sector: "Fintech", location: null, term: null, url: null,
+  id: 1, userId: 1, companyId: 7, company: "Stripe", roleTitle: "SWE Intern", roleFunction: "SWE", sector: "Fintech", location: null, term: null, url: null,
   source: null, appliedOn: "2026-09-05", deadlineOn: null, followUpOn: null, resumeVersion: null, compensation: null, notes: "", status: "applied",
   archivedAt: null, createdAt: "t", updatedAt: "t", ...over,
 });
@@ -43,8 +43,10 @@ test("the CSV has one row per application, a header, the history in one cell, an
 test("the JSON export carries every field, the history, and the lists", () => {
   const j = buildJsonExport("2026-11-05T00:00:00Z", [{ application: app({ archivedAt: "x" }), history: [ev("applied", "2026-09-05")] }], [
     { id: 1, userId: 1, name: "SWE", filter: { roleFunctions: ["SWE"] }, createdAt: "t", updatedAt: "t" },
-  ]);
-  assert.equal(j.version, 1);
+  ], [{ id: 7, userId: 1, name: "Stripe", sector: "Fintech", createdAt: "t", updatedAt: "t", applications: 1, totalApplications: 1 }]);
+  assert.equal(j.version, 2);
+  assert.deepEqual(j.companies, [{ id: 7, name: "Stripe", sector: "Fintech" }]); // the sector is stored once, here
+  assert.equal(j.applications[0]!.companyId, 7);
   assert.deepEqual(j.applications[0]!.history, [{ status: "applied", on: "2026-09-05", note: null }]);
   assert.equal(j.applications[0]!.archived, true);
   assert.deepEqual(j.lists, [{ name: "SWE", filter: { roleFunctions: ["SWE"] } }]);

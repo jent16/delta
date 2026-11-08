@@ -14,10 +14,11 @@ function sandbox(run: (dir: string) => void) {
   try { run(dir); } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 const addApp = (db: Db, company: string) => {
-  const id = Number(db.prepare("INSERT INTO applications (user_id, company, role_title, status, dedupe_key, created_at, updated_at) VALUES (1,?,?,'applied',?,'t','t')").run(company, "SWE", company).lastInsertRowid);
+  const companyId = Number(db.prepare("INSERT INTO companies (user_id, name, name_key, created_at, updated_at) VALUES (1,?,?,'t','t')").run(company, company.toLowerCase()).lastInsertRowid);
+  const id = Number(db.prepare("INSERT INTO applications (user_id, company_id, role_title, status, dedupe_key, created_at, updated_at) VALUES (1,?,?,'applied',?,'t','t')").run(companyId, "SWE", company).lastInsertRowid);
   db.prepare("INSERT INTO status_events (application_id, status, occurred_on, created_at) VALUES (?, 'applied', '2026-09-01', 't')").run(id);
 };
-const apps = (file: string) => { const d = new Database(file, { readonly: true }); try { return (d.prepare("SELECT company FROM applications ORDER BY id").all() as { company: string }[]).map((r) => r.company); } finally { d.close(); } };
+const apps = (file: string) => { const d = new Database(file, { readonly: true }); try { return (d.prepare("SELECT c.name AS company FROM applications a JOIN companies c ON c.id = a.company_id ORDER BY a.id").all() as { company: string }[]).map((r) => r.company); } finally { d.close(); } };
 const T = (s: string) => new Date(`${s}Z`);
 function liveDb(dir: string, companies: string[] = ["Stripe", "Figma"]) {
   const db = openDatabase(join(dir, "tracker.db"));
@@ -123,7 +124,7 @@ test("restore round trip: the backup's data comes back, and the database you had
   sandbox((dir) => {
     const db = liveDb(dir);
     const backup = createBackup(db, join(dir, "b"), { now: T("2026-11-05T10:00:00") });
-    addApp(db, "Added After"); db.prepare("DELETE FROM applications WHERE company = 'Figma'").run();
+    addApp(db, "Added After"); db.prepare("DELETE FROM applications WHERE company_id = (SELECT id FROM companies WHERE name = 'Figma')").run();
     db.close();
 
     const r = restoreBackup({ backupFile: backup.file, targetFile: join(dir, "tracker.db"), safetyDir: join(dir, "b"), now: T("2026-11-05T11:00:00") });
@@ -169,7 +170,11 @@ test("restore can set up a machine with no database yet, and an old backup is up
     // an old backup: only migration 0001 had run
     const old = join(dir, "old"); mkdirSync(old);
     copyFileSync(join(DEFAULT_MIGRATIONS_DIR, "0001_init.sql"), join(old, "0001_init.sql"));
-    const v1 = openDatabase(join(dir, "v1.db")); migrate(v1, old); addApp(v1, "Legacy Co"); v1.close();
+    const v1 = openDatabase(join(dir, "v1.db")); migrate(v1, old);
+    // the old shape: the company name is a column of the application itself
+    const legacyId = Number(v1.prepare("INSERT INTO applications (user_id, company, role_title, status, dedupe_key, created_at, updated_at) VALUES (1,'Legacy Co','SWE','applied','legacy co|swe|','t','t')").run().lastInsertRowid);
+    v1.prepare("INSERT INTO status_events (application_id, status, occurred_on, created_at) VALUES (?, 'applied', '2026-09-01', 't')").run(legacyId);
+    v1.close();
 
     const target = join(dir, "fresh", "tracker.db");
     const r = restoreBackup({ backupFile: join(dir, "v1.db"), targetFile: target, safetyDir: join(dir, "b") });
@@ -177,7 +182,8 @@ test("restore can set up a machine with no database yet, and an old backup is up
     const db = openDatabase(target);
     const applied = migrate(db); // what the server does on its next start
     assert.ok(applied.length >= 1 && applied[0] === "0002");
-    assert.deepEqual((db.prepare("SELECT company FROM applications").all() as { company: string }[]).map((x) => x.company), ["Legacy Co"]);
+    // upgraded in place: the name now lives on a company, and the application points at it
+    assert.deepEqual((db.prepare("SELECT c.name AS company FROM applications a JOIN companies c ON c.id = a.company_id").all() as { company: string }[]).map((x) => x.company), ["Legacy Co"]);
     assert.equal((db.prepare("SELECT COUNT(*) c FROM lists").get() as { c: number }).c, 3);
     db.close();
   });

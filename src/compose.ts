@@ -11,6 +11,7 @@ import { migrate } from "./db/migrate.ts";
 import { createSimplifyDirectory } from "./importers/simplify.ts";
 import { createNotionSource } from "./importers/notion.ts";
 import { createApplicationRepository } from "./repositories/applications.ts";
+import { createCompanyRepository } from "./repositories/companies.ts";
 import { createImportLedger } from "./repositories/import-ledger.ts";
 import { createListRepository } from "./repositories/lists.ts";
 import { createApplicationService } from "./services/applications.ts";
@@ -50,9 +51,11 @@ export function composeTracker(opts: { dataDir: string; env?: NodeJS.ProcessEnv 
     clock,
   });
   const listRepo = createListRepository(db);
-  const exports = createExportService({ applications: applicationRepo, lists: listRepo, clock });
+  const companyRepo = createCompanyRepository(db);
+  const exports = createExportService({ applications: applicationRepo, lists: listRepo, companies: companyRepo, clock });
   const companies = createCompanyService({
-    repo: applicationRepo,
+    companies: companyRepo,
+    clock,
     directory: createSimplifyDirectory({ cacheFile: join(opts.dataDir, "cache", "companies.json") }),
   });
   const insights = createInsightsService({ applications: applicationRepo, lists: listRepo, clock });

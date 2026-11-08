@@ -22,11 +22,12 @@ test("suggestions combine your own companies (with counts) and the directory, yo
   ]);
 });
 
-test("a company you've archived everywhere no longer shows as 'yours'", async () => {
+test("a company whose applications are all archived is still suggested (you have history with it), with a count of 0", async () => {
   const t = tracker([]);
   const a = t.service.add(1, { company: "Gone Co", roleTitle: "SWE" });
   t.service.archive(1, a.id);
-  assert.deepEqual((await t.companies.search(1, { q: "gone" })).suggestions, []);
+  const s = (await t.companies.search(1, { q: "gone" })).suggestions;
+  assert.deepEqual(s.map((x) => [x.name, x.source, x.applications]), [["Gone Co", "yours", 0]]);
 });
 
 test("only your own companies are suggested for you", async () => {

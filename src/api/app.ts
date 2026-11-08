@@ -5,7 +5,7 @@
 
 import express from "express";
 import type { ErrorRequestHandler, Request } from "express";
-import { DuplicateError, InvalidTransitionError, NotFoundError, SourceError, ValidationError } from "../domain/errors.ts";
+import { CompanyExistsError, DuplicateError, InvalidTransitionError, NotFoundError, SourceError, ValidationError } from "../domain/errors.ts";
 import type { ApplicationService } from "../services/applications.ts";
 import type { CompanyService } from "../services/companies.ts";
 import type { ExportService } from "../services/export.ts";
@@ -44,6 +44,7 @@ const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof InvalidTransitionError) {
     return void res.status(409).json({ error: "invalid_transition", message: err.message, from: err.from, to: err.to, allowed: err.allowed });
   }
+  if (err instanceof CompanyExistsError) return void res.status(409).json({ error: "company_exists", message: err.message, existingId: err.existingId, existingName: err.existingName });
   if (err instanceof DuplicateError) return void res.status(409).json({ error: "duplicate", message: err.message, existingId: err.existingId });
   if (err instanceof SourceError) return void res.status(502).json({ error: "source_error", message: err.message });
   if (err instanceof SyntaxError) return void res.status(400).json({ error: "validation", issues: [{ field: "(body)", message: "not valid JSON" }] });
@@ -136,9 +137,22 @@ export function createApp(deps: AppDeps) {
     res.json(await imports.commit(currentUserId(req), req.body));
   });
 
-  // --- company search, for the quick-add box ---
+  // --- companies: the name and sector, stored once and shared by every application there ---
+  // "search" is declared before ":id" so it is never read as an id
   app.get("/api/companies/search", async (req, res) => {
     res.json(await companies.search(currentUserId(req), req.query as Record<string, unknown>));
+  });
+
+  app.get("/api/companies", (req, res) => {
+    res.json({ companies: companies.list(currentUserId(req)) });
+  });
+
+  app.patch("/api/companies/:id", (req, res) => {
+    res.json(companies.edit(currentUserId(req), idParam(req), req.body));
+  });
+
+  app.post("/api/companies/:id/merge", (req, res) => {
+    res.json(companies.merge(currentUserId(req), idParam(req), req.body));
   });
 
   // --- how it's going, and what needs attention ---

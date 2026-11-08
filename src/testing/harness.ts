@@ -6,6 +6,7 @@ import { createApp } from "../api/app.ts";
 import { openDatabase } from "../db/connection.ts";
 import { migrate } from "../db/migrate.ts";
 import { createApplicationRepository } from "../repositories/applications.ts";
+import { createCompanyRepository } from "../repositories/companies.ts";
 import { createImportLedger } from "../repositories/import-ledger.ts";
 import { createListRepository } from "../repositories/lists.ts";
 import { createApplicationService } from "../services/applications.ts";
@@ -33,12 +34,14 @@ export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0), sources?:
     clock,
   });
   const listRepo = createListRepository(db);
-  const exports = createExportService({ applications: applicationRepo, lists: listRepo, clock });
-  const companies = createCompanyService({ repo: applicationRepo, directory: directory ?? { names: async () => ({ names: [], available: true }) } });
+  const companyRepo = createCompanyRepository(db);
+  const exports = createExportService({ applications: applicationRepo, lists: listRepo, companies: companyRepo, clock });
+  const companies = createCompanyService({ companies: companyRepo, clock, directory: directory ?? { names: async () => ({ names: [], available: true }) } });
   const insights = createInsightsService({ applications: applicationRepo, lists: listRepo, clock });
   return {
     db,
     service,
+    companyRepo,
     companies,
     insights,
     lists,

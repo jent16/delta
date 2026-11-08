@@ -5,6 +5,7 @@
 // swap in anything that satisfies the interface.
 
 import type { Application, ApplicationFields, ApplicationPatch, ApplicationQuery, NewApplication, StatusChange, StatusEvent } from "./application.ts";
+import type { CompanySummary } from "./company-record.ts";
 import type { ExportedApplication } from "./export.ts";
 import type { ListFilter, ListPatch, NewList, SavedList } from "./list.ts";
 
@@ -29,10 +30,24 @@ export interface ApplicationRepository {
   exportAll(userId: number): ExportedApplication[];
   /** Applications matching the query, each with its history, with no row cap. For stats and reminders. */
   withHistory(userId: number, query: ApplicationQuery): ExportedApplication[];
-  /** Your distinct company names with how many (non-archived) applications use each. */
-  companyNames(userId: number): { name: string; count: number }[];
   /** One atomic statement: changes the same fields on every listed application. Returns how many changed. */
   updateMany(userId: number, ids: number[], patch: ApplicationPatch, now: string): number;
+}
+
+/** Companies: the name and sector, stored once; applications point at them. */
+export interface CompanyRepository {
+  /** All of the user's companies, by name, each with how many applications point at it. */
+  all(userId: number): CompanySummary[];
+  findById(userId: number, id: number): CompanySummary | null;
+  /** The company with this name, matched by identity key (case and spacing don't matter). */
+  findByName(userId: number, name: string): CompanySummary | null;
+  /** Changes the name (and so the key), and re-derives the duplicate key of every application there. */
+  rename(userId: number, id: number, name: string, now: string): CompanySummary | null;
+  setSector(userId: number, id: number, sector: string | null, now: string): CompanySummary | null;
+  /** Roles that would collide if `fromId`'s applications moved to `intoId` (same role and term already there). */
+  mergeConflicts(userId: number, fromId: number, intoId: number): string[];
+  /** Moves every application of `fromId` to `intoId` and removes `fromId`, atomically. */
+  merge(userId: number, fromId: number, intoId: number, now: string): { company: CompanySummary; moved: number } | null;
 }
 
 export interface ListRepository {

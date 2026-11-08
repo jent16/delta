@@ -1,4 +1,5 @@
 import { isIsoDate } from "./dates.ts";
+import { identityKey } from "./keys.ts";
 import { ValidationError, type ValidationIssue } from "./errors.ts";
 import { isStatus, STATUSES, type Status } from "./status.ts";
 import { ROLE_FUNCTIONS, SECTORS, type RoleFunction, type Sector } from "./vocab.ts";
@@ -27,6 +28,8 @@ export interface ApplicationFields {
 export interface Application extends ApplicationFields {
   id: number;
   userId: number;
+  /** The company this belongs to. `company` (its name) and `sector` are read from that company, not stored on the application. */
+  companyId: number;
   status: Status;
   archivedAt: string | null;
   createdAt: string;
@@ -284,7 +287,7 @@ export function parseApplicationQuery(raw: Record<string, unknown>): Application
 
 // ---- duplicate detection --------------------------------------------------
 
-const norm = (s: string | null) => (s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+const norm = identityKey; // the same simple rule the database migration uses (see keys.ts)
 
 /**
  * Two applications with the same company, role and term are almost certainly

@@ -69,6 +69,33 @@ the assessment). *Responded* = assessment, interview, offer or a rejection; sile
 are approximate, which carries into "days to a response". *Stale* = applied or in
 progress, nothing changed for 21+ days, and no follow-up date set.
 
+### The web UI
+
+`npm run tracker` serves the tracker's own UI at <http://localhost:3001>: plain
+HTML, CSS and JavaScript in [`src/web/`](src/web/), no build step. It reads and
+writes through the same API as everything else.
+
+- **Dashboard.** Sent / responses / interviews / offers, how far applications get
+  (a funnel where skipping a stage still counts), what needs attention, applications
+  sent per week, and a row per saved list.
+- **Applications.** Your lists as tabs, status chips, search, sortable columns, a
+  four-segment progress bar (the furthest stage ever reached, plus how it ended),
+  a status menu that only offers legal moves, and bulk actions that change all of
+  the selected applications or none.
+- **Detail panel.** The dated history, undo, the editable details (including
+  follow-up date and deadline, which feed Reminders), notes, archive.
+- **New application.** A company box that suggests your own companies first, then a
+  directory, and forgives typos.
+- **Reminders.** Follow-ups due, deadlines, and applications that have gone quiet.
+- **Appearance.** Light, dark (Google's dark greys) or follow the device, and a
+  choice of design: Soft pastel (default), Vibrant, Ocean. Remembered per browser.
+
+The page is served with a strict Content-Security-Policy (only its own scripts and
+styles, no outside requests), and the code never turns text into HTML, so a company
+named `<script>` is shown as text. `src/web.test.ts` enforces both. There is no
+login yet, so the server listens on your own machine only (`localhost`); set
+`TRACKER_HOST` only if you mean to open it up.
+
 ### Backups, restore and export
 
 `var/tracker.db` holds the only copy of your applications, so it is backed up

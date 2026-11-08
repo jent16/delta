@@ -271,3 +271,44 @@ replied. The ghost date is the day it was marked, not when the silence began
 (that moment is unknowable), and each event carries a note saying so. Ghosted is
 not final, so a late reply still moves it forward, and every one can be undone.
 A labelled `pre-cleanup` backup was taken first.
+
+## 32. The UI is plain files, served by the same process
+No framework, no bundler, no build step: `src/web/` is HTML, CSS and ES modules,
+and the API process serves it. A framework would earn its keep with many screens
+and lots of shared state; this has three screens and one data source. The cost of
+having nothing compile the UI is that nothing checks it either, so `src/web.test.ts`
+checks the things that matter by reading the files: no `innerHTML`/`eval`, no inline
+scripts or styles, no outside URLs, every import resolves, and the layering holds.
+The page is served with a Content-Security-Policy (`script-src 'self'`,
+`style-src 'self'`, `connect-src 'self'`, no framing). Your data includes text
+imported from elsewhere, so a company called `<img onerror=...>` must display as
+those characters and nothing more; the policy is the second wall behind "never
+build HTML from text". It also means no Google Fonts for now (system fonts), which
+is the honest price of the policy; self-hosting the font files is on the roadmap.
+
+## 33. The server owns the rules; the browser asks
+The UI asks `/api/vocab` for the statuses, the legal moves, the sectors and the
+functions, and gets progress and dates from `/api/pipeline` and the application
+detail. A copy of the transition table in JavaScript would work today and quietly
+disagree the first time the rules change. The earlier concept demo did keep its own
+copy, which is fine for a demo and exactly what the real UI must not do. The server
+still re-checks everything: the UI pre-checks bulk "mark ghosted" only to give a
+friendlier message naming companies, and the server is the authority.
+
+## 34. The progress bar shows the furthest stage reached
+Four segments: Applied, Assessment, Interview, Offer, filled to the furthest stage
+ever reached in the dated history, not the current status. A rejection after an
+interview still shows three segments, with a marker for how it ended. "Progress
+toward a job" would sit at zero for nearly everything (offers are rare) and
+"interviews completed" needs a total nobody knows; this needs no extra input. The
+dashboard funnel uses the same rule, so a skipped assessment still counts as
+having got past it.
+
+## 35. Looks are tokens: a mode and a design
+Neutrals (page, cards, lines, text) change with the mode (light, dark using
+Google's dark greys, or follow the device). Four brand hues, how strongly panels
+are tinted, and the accent change with the design (Soft pastel, Vibrant, Ocean).
+Tiles, panels and chips are derived from those, so a new design is about ten lines
+and cannot break dark mode. Soft pastel (the Hilos-style look) is the default. The
+choice is remembered per browser; a classic `theme-init.js` applies it before first
+paint so there is no flash of the wrong theme.

@@ -29,6 +29,9 @@ HTTP request
                  domain/ports.ts, translating rows <-> domain objects.
  db/             opening the database, applying migrations, and backing up /
                  restoring the database file.
+ web/            the browser UI: plain HTML/CSS/JS served as static files. It only ever
+                 talks to api/ over HTTP, so it is the one layer that can change
+                 freely (see "The web UI has layers too" below).
  compose.ts      the composition root: builds every object and hands each one
                  what it needs. The only place that knows about all the layers.
  main.ts, import-notion.ts
@@ -52,6 +55,28 @@ Source code may only depend **inward**:
 rather than a paragraph in a document because a document erodes the first time
 someone is in a hurry, and a red build does not. A new directory under `src/`
 that isn't in the rules fails the test too, so it can't be quietly exempt.
+
+### The web UI has layers too
+
+`src/web/` has no build step and no TypeScript, so nothing checks it for you; the
+structure is held by `src/web.test.ts` instead.
+
+```
+app.js          start-up, the top bar, which screen shows, keyboard shortcuts
+views/          one file per screen (dashboard, applications, reminders) and per panel
+                (drawer, new-application). They ask lib/api.js for data and draw it.
+lib/            pieces shared by screens: api.js (the ONLY file that makes requests),
+                dom.js (build elements; text only, never HTML), state.js, ui.js
+                (chips, progress bar, menus, toast), overlay.js, format.js, theme.js
+```
+
+The same one-way rule applies: `lib/` never imports `views/` or `app.js`, and
+`views/` never imports `app.js` (screens reach the shell through `lib/ctx.js`).
+The UI also keeps no copy of the business rules. Which moves are legal, the list of
+sectors, and how far an application got all arrive from the server (`/api/vocab`,
+`/api/pipeline`), so the two can't disagree. The one exception is cosmetic:
+filtering the table by status, sorting and searching run in the browser on the rows
+already loaded, because it makes typing instant.
 
 ### Why bother
 

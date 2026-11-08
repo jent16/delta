@@ -61,7 +61,7 @@ with its own rebuildable `delta.db`.
 | 3 | Notion importer: preview, commit, idempotent. 130 applications imported | done |
 | 3b | Backup, verified restore, automatic backups, JSON/CSV export | done |
 | 3c | API for the UI: company search, bulk edit, `missing=` filter, stats, reminders | done |
-| 4 | Plain UI: table, list sidebar, quick-add, status dropdown, detail + history | next |
+| 4 | Web UI: dashboard, applications table, quick-add with company search, detail panel, reminders, light/dark and selectable designs | done (first version) |
 | 5 | Insights: funnel, response rate and time-in-stage per list | planned |
 | 6 | Contacts (many-to-many with applications) and alumni helper | planned |
 | 7 | Bring the old Delta in: "Save to tracker" from Find Openings; resume match shown on an application | planned |
@@ -79,9 +79,10 @@ with its own rebuildable `delta.db`.
   safe fields, a `missing=` filter, stats and reminders. Built and tested before
   any HTML, so the UI stays a thin skin. Also done: bulk *status* change (used to mark 71
   silent applications ghosted) and a first pass classifying sectors (113 of 130 set).
-- **4 UI.** Function before looks: table with filters, list sidebar, quick-add,
-  status change with an undo, detail page with the dated history. Design inspo
-  can come later because the API underneath won't change.
+- **4 UI (first version done).** Built last on purpose, on a finished and tested
+  API, because looks change and behaviour shouldn't. Plain files in `src/web/`,
+  served by the same process. Still to do here: animations and "feel" (waiting for
+  your instructions), self-hosted fonts, and the small gaps listed below.
 - **5 Insights.** Applied -> assessment -> interview funnel per list, how long
   applications sit in each stage, which source/resume version converts.
 - **6 Contacts.** People at companies, link them to applications, "find alumni"
@@ -93,6 +94,19 @@ with its own rebuildable `delta.db`.
   and the security work the unauthenticated legacy endpoints currently prevent.
 
 ## 4. Known gaps (worth fixing, not yet scheduled)
+
+UI:
+- Fonts: the design calls for Young Serif / Figtree / DM Mono, but the page's
+  security policy forbids loading them from Google, so it uses the system's fonts.
+  Fix: download the three font files once and serve them from `src/web/` (needs
+  your OK to download).
+- Archive has no "unarchive" in the UI (the data is kept, and exports include it).
+- Company, role and term can't be edited from the panel (they define what counts
+  as a duplicate); fix a typo by archiving and re-adding for now.
+- No login: fine while it only listens on your own machine, required before hosting (step 9).
+- 17 applications still have no sector; the bulk "Set sector" menu makes that quick.
+
+Backend:
 - 17 applications (15 companies, e.g. Intuit, Grow, Amplify, Honeywell) still have
   no sector because they couldn't be placed with confidence; set them with
   `missing=sector` + bulk edit.

@@ -1,0 +1,66 @@
+// The only file that talks to the server. Views call these functions and never build URLs or read
+// raw responses, so if an endpoint changes there is one place to fix.
+
+export class ApiError extends Error {
+  constructor(status, body, message) {
+    super(message);
+    this.status = status;
+    this.body = body;
+  }
+}
+
+/** A sentence a person can read, from whatever went wrong. */
+export function describeError(err) {
+  if (!(err instanceof ApiError)) return "Something went wrong.";
+  const b = err.body;
+  if (err.status === 0) return "Can't reach the tracker. Is it still running?";
+  if (b?.error === "validation") return (b.issues ?? []).map((i) => (i.field && i.field !== "(body)" ? `${i.field}: ${i.message}` : i.message)).join(". ") || "That wasn't valid.";
+  if (b?.error === "invalid_transition" || b?.error === "duplicate") return b.message;
+  if (b?.error === "not_found") return `That ${b.what ?? "item"} no longer exists.`;
+  return "The tracker had a problem with that. Nothing was changed.";
+}
+
+async function request(method, path, body, signal) {
+  let res;
+  try {
+    res = await fetch(path, {
+      method,
+      signal,
+      headers: body !== undefined ? { "content-type": "application/json" } : undefined,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch (e) {
+    if (e?.name === "AbortError") throw e;
+    throw new ApiError(0, null, "network");
+  }
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch { /* not JSON */ }
+  if (!res.ok) throw new ApiError(res.status, data, `${method} ${path} -> ${res.status}`);
+  return data;
+}
+
+const query = (params) => {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null && v !== "") q.set(k, String(v));
+  const s = q.toString();
+  return s ? `?${s}` : "";
+};
+const scope = (listId) => (listId && listId !== "all" ? { list: listId } : {});
+
+export const api = {
+  vocab: () => request("GET", "/api/vocab"),
+  lists: () => request("GET", "/api/lists").then((r) => r.lists),
+  pipeline: (listId) => request("GET", `/api/pipeline${query(scope(listId))}`),
+  stats: (listId) => request("GET", `/api/stats${query(scope(listId))}`),
+  reminders: () => request("GET", "/api/reminders"),
+  application: (id) => request("GET", `/api/applications/${id}`),
+  create: (body) => request("POST", "/api/applications", body),
+  edit: (id, patch) => request("PATCH", `/api/applications/${id}`, patch),
+  changeStatus: (id, status, note) => request("POST", `/api/applications/${id}/status`, { status, ...(note ? { note } : {}) }),
+  undo: (id) => request("POST", `/api/applications/${id}/status/undo`),
+  archive: (id) => request("DELETE", `/api/applications/${id}`),
+  bulkEdit: (ids, set) => request("POST", "/api/applications/bulk", { ids, set }),
+  bulkStatus: (ids, status, note) => request("POST", "/api/applications/bulk/status", { ids, status, ...(note ? { note } : {}) }),
+  searchCompanies: (q, signal) => request("GET", `/api/companies/search${query({ q })}`, undefined, signal),
+};

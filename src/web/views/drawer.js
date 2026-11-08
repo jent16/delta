@@ -1,0 +1,115 @@
+// The detail panel for one application: its status and legal next moves, the editable details,
+// the dated history, notes, and archive. Every change goes to the server first; the screen then
+// shows what the server says, so what you see is always what is stored.
+
+import { api, describeError } from "../lib/api.js";
+import { $, clear, h, icon } from "../lib/dom.js";
+import { ctx } from "../lib/ctx.js";
+import { shortDate } from "../lib/format.js";
+import { closeOverlays, openOverlay } from "../lib/overlay.js";
+import { label, movesFrom, vocab } from "../lib/state.js";
+import { chip, logo, progressBar, toast } from "../lib/ui.js";
+
+export async function openDrawer(id) {
+  try {
+    const detail = await api.application(id);
+    draw(detail);
+  } catch (e) {
+    toast(describeError(e), true);
+  }
+}
+
+// The fields you can change from here. Company, role and term are left alone on purpose:
+// they define what counts as a duplicate, so they are not casually editable.
+const FIELDS = [
+  { key: "roleFunction", name: "Function", kind: "select", options: () => vocab.roleFunctions.map((f) => [f, f]) },
+  { key: "sector", name: "Sector", kind: "select", options: () => [["", "Not set"], ...vocab.sectors.map((s) => [s, s])] },
+  { key: "location", name: "Location", kind: "text" },
+  { key: "term", name: "Term", kind: "text", placeholder: "e.g. Summer 2027" },
+  { key: "followUpOn", name: "Follow up on", kind: "date" },
+  { key: "deadlineOn", name: "Deadline", kind: "date" },
+  { key: "url", name: "Link to the posting", kind: "url", wide: true, placeholder: "https://…" },
+];
+
+function draw({ application: a, events, progress }) {
+  const drawer = clear($("#drawer"));
+  const next = movesFrom(a.status);
+
+  const refreshHere = async () => { await ctx.refresh(); openDrawer(a.id); };
+  const change = async (promise, message) => {
+    try { await promise; toast(message); await refreshHere(); } catch (e) { toast(describeError(e), true); }
+  };
+
+  const moves = h("div", { class: "moves" });
+  for (const s of next) {
+    const c = chip(s, () => change(api.changeStatus(a.id, s), `${a.company} moved to ${label(s)}`));
+    c.removeAttribute("aria-haspopup");
+    c.setAttribute("title", `Move to ${label(s)}`);
+    moves.append(c);
+  }
+  if (!next.length) moves.append(h("span", { class: "dim", text: `${label(a.status)} is final.` }));
+  if (events.length > 1) moves.append(h("button", { class: "btn small", type: "button", text: "Undo last", onclick: () => change(api.undo(a.id), "Undid the last change") }));
+
+  // history, newest first
+  const timeline = h("ol", { class: "timeline" });
+  for (const e of [...events].reverse()) {
+    timeline.append(h("li", {}, h("span", { class: "pt", vars: { "--h": `var(--h-${e.status})` } }),
+      h("div", {}, h("b", { text: label(e.status) }), e.note ? h("div", { class: "tl-note", text: e.note }) : null),
+      h("span", { class: "date", text: shortDate(e.occurredOn) })));
+  }
+
+  // editable details: each field saves by itself when you leave it
+  const grid = h("div", { class: "edit-grid" });
+  for (const f of FIELDS) {
+    const id = `d-${f.key}`;
+    let stored = a[f.key] ?? ""; // what the server last confirmed; updated after each successful save
+    const input = f.kind === "select"
+      ? h("select", { id }, f.options().map(([value, text]) => h("option", { value, text, selected: value === stored })))
+      : h("input", { id, type: f.kind, value: stored, placeholder: f.placeholder });
+    input.addEventListener("change", async () => {
+      const value = input.value.trim();
+      if (value === stored) return;
+      try {
+        await api.edit(a.id, { [f.key]: value === "" ? null : value });
+        stored = value;
+        toast("Saved");
+        await ctx.refresh();
+      } catch (e) {
+        input.value = stored; // put back what is actually stored
+        toast(describeError(e), true);
+      }
+    });
+    grid.append(h("div", { class: `field${f.wide ? " wide" : ""}` }, h("label", { for: id, text: f.name }), input));
+  }
+  const firstApplied = events.find((e) => e.status === "applied");
+  const appliedOn = a.appliedOn ?? firstApplied?.occurredOn ?? null;
+
+  const notes = h("textarea", { "aria-label": "Notes", placeholder: "Recruiter names, questions to prepare, links…", value: a.notes });
+  notes.addEventListener("change", async () => {
+    try { await api.edit(a.id, { notes: notes.value }); toast("Notes saved"); } catch (e) { toast(describeError(e), true); }
+  });
+
+  const archive = async () => {
+    try {
+      await api.archive(a.id);
+      closeOverlays();
+      toast(`${a.company} archived. Your data is kept; it just leaves the lists.`);
+      await ctx.refresh();
+    } catch (e) { toast(describeError(e), true); }
+  };
+
+  const close = h("button", { class: "btn small closebtn", type: "button", "aria-label": "Close details", onclick: closeOverlays }, icon("x", 14), "Close");
+  drawer.append(
+    h("div", { class: "drawer-head" },
+      h("div", { class: "dh-top" }, close),
+      h("div", { class: "dh-main" }, logo(a.company), h("div", { class: "drawer-title" }, h("h2", { text: a.company }), h("p", { text: a.roleTitle })))),
+    h("div", { class: "drawer-body" },
+      h("div", { class: "sect" }, h("h3", { text: "Status" }),
+        h("div", { class: "status-row" }, chip(a.status), h("div", {}, progressBar(progress, true), h("div", { class: "stage-names" }, vocab.progressStages.map((s) => h("span", { text: s }))))),
+        next.length ? h("h3", { text: "Move to" }) : null, moves),
+      h("div", { class: "sect" }, h("h3", { text: "Details" }), h("p", { class: "note-line", text: appliedOn ? `Applied ${shortDate(appliedOn)}.` : "Not applied yet." }), grid),
+      h("div", { class: "sect" }, h("h3", { text: "History" }), timeline),
+      h("div", { class: "sect" }, h("h3", { text: "Notes" }), notes),
+      h("div", {}, h("button", { class: "btn small", type: "button", text: "Archive", onclick: archive }))));
+  openOverlay(drawer, close);
+}

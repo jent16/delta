@@ -231,3 +231,29 @@ export function parseEvent(rawInput: unknown, today: string): NewContactEvent {
   if (issues.length) throw new ValidationError(issues);
   return { kind: kind as EventKind, on, note };
 }
+
+/** `{ url, applicationId?, name?, relationship?, role? }`: add the person behind a pasted profile link. */
+export function parseFromProfile(rawInput: unknown): { url: string; applicationId: number | null; name: string | null; relationship: Relationship; role: LinkRole } {
+  const raw = object(rawInput);
+  const issues: ValidationIssue[] = [];
+  for (const key of Object.keys(raw)) if (!["url", "applicationId", "name", "relationship", "role"].includes(key)) issues.push({ field: key, message: "unknown field" });
+  const url = typeof raw.url === "string" ? raw.url.trim() : "";
+  if (!url) issues.push({ field: "url", message: "is required: paste a LinkedIn profile link" });
+  let applicationId: number | null = null;
+  if (raw.applicationId !== undefined && raw.applicationId !== null) {
+    if (!Number.isInteger(raw.applicationId) || (raw.applicationId as number) < 1) issues.push({ field: "applicationId", message: "must be an application id" });
+    else applicationId = raw.applicationId as number;
+  }
+  let name: string | null = null;
+  if (raw.name !== undefined && raw.name !== null && raw.name !== "") {
+    if (typeof raw.name !== "string") issues.push({ field: "name", message: "must be text" });
+    else if (raw.name.trim().length > 200) issues.push({ field: "name", message: "is too long (max 200)" });
+    else name = raw.name.replace(/\s+/g, " ").trim();
+  }
+  const relationship = raw.relationship === undefined ? "alumni" : raw.relationship;
+  if (typeof relationship !== "string" || !(RELATIONSHIPS as readonly string[]).includes(relationship)) issues.push({ field: "relationship", message: `must be one of: ${RELATIONSHIPS.join(", ")}` });
+  const role = raw.role === undefined ? "other" : raw.role;
+  if (typeof role !== "string" || !(LINK_ROLES as readonly string[]).includes(role)) issues.push({ field: "role", message: `must be one of: ${LINK_ROLES.join(", ")}` });
+  if (issues.length) throw new ValidationError(issues);
+  return { url, applicationId, name, relationship: relationship as Relationship, role: role as LinkRole };
+}

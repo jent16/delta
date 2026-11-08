@@ -65,6 +65,7 @@ export const api = {
   applicationPeople: (id) => request("GET", `/api/applications/${id}/contacts`),
   previewLinkedIn: (csv, accept) => request("POST", "/api/import/linkedin/preview", { csv, ...(accept && Object.keys(accept).length ? { accept } : {}) }),
   commitLinkedIn: (csv, accept) => request("POST", "/api/import/linkedin/commit", { csv, ...(accept && Object.keys(accept).length ? { accept } : {}) }),
+  addFromProfile: (body) => request("POST", "/api/contacts/from-profile", body),
   settings: () => request("GET", "/api/settings"),
   editSettings: (patch) => request("PATCH", "/api/settings", patch),
   breakdowns: (listId) => request("GET", `/api/breakdowns${query(scope(listId))}`),

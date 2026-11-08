@@ -371,3 +371,18 @@ test("LinkedIn import over HTTP: preview writes nothing, commit adds, a big file
   assert.equal((await api.call("POST", "/api/import/linkedin/preview", { csv: "not,a,connections file\n1,2,3" })).status, 400);
   assert.equal((await api.call("POST", "/api/import/linkedin/preview", {})).status, 400);
 });
+
+test("pasting a profile link over HTTP: 201 for a new person, 200 for one you already have, 400 for a bad link, 404 for an unknown application", async (t) => {
+  const api = await startApi();
+  t.after(() => api.close());
+  const app = (await api.call("POST", "/api/applications", { company: "Stripe", roleTitle: "SWE" })).body;
+  const first = await api.call("POST", "/api/contacts/from-profile", { url: "https://www.linkedin.com/in/priya-shah-4a8b21", applicationId: app.id });
+  assert.equal(first.status, 201);
+  assert.deepEqual([first.body.created, first.body.linked, first.body.contact.name, first.body.contact.company], [true, true, "Priya Shah", "Stripe"]);
+  const again = await api.call("POST", "/api/contacts/from-profile", { url: "https://ca.linkedin.com/in/priya-shah-4a8b21/", applicationId: app.id });
+  assert.deepEqual([again.status, again.body.created], [200, false]);
+  assert.equal((await api.call("GET", `/api/applications/${app.id}/contacts`)).body.people.length, 1);
+  assert.equal((await api.call("POST", "/api/contacts/from-profile", { url: "https://www.linkedin.com/company/stripe" })).status, 400);
+  assert.equal((await api.call("POST", "/api/contacts/from-profile", {})).status, 400);
+  assert.equal((await api.call("POST", "/api/contacts/from-profile", { url: "https://www.linkedin.com/in/someone", applicationId: 999 })).status, 404);
+});

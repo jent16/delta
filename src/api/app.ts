@@ -124,6 +124,12 @@ export function createApp(deps: AppDeps) {
     res.status(201).json(contacts.add(currentUserId(req), req.body));
   });
 
+  // paste a LinkedIn profile link: adds (or finds) the person and links them to an application. Declared before :id routes.
+  app.post("/api/contacts/from-profile", (req, res) => {
+    const r = contacts.addFromProfile(currentUserId(req), req.body);
+    res.status(r.created ? 201 : 200).json(r);
+  });
+
   app.get("/api/contacts/:id", (req, res) => {
     res.json(contacts.get(currentUserId(req), idParam(req)));
   });

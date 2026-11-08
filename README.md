@@ -67,6 +67,7 @@ elsewhere.
 | `GET/POST /api/contacts`, `GET/PATCH/DELETE /api/contacts/:id` | people; list filters `q`, `company`, `relationship`, `due=1`; delete is permanent and takes the person's log and links |
 | `POST /api/contacts/:id/events`, `POST /api/contacts/:id/links`, `DELETE /api/contacts/:id/links/:applicationId` | the dated log (`{kind, on?, note?}`), and linking a person to an application with a role |
 | `GET /api/applications/:id/contacts` | the people linked to an application, other people at its company, and the alumni search links |
+| `POST /api/contacts/from-profile` | `{url, applicationId?, name?, relationship?, role?}`: add the person behind a pasted LinkedIn profile link (201), or link someone you already have (200); the name comes from the link unless given |
 | `GET/PATCH /api/settings` | preferences; today `school` (blank puts the default back) |
 | `POST /api/import/linkedin/preview`, `/commit` | `{csv, accept?}`: the text of `Connections.csv`, and `accept` maps a person's key to the company you confirmed for them. Preview writes nothing; commit takes a `pre-import` backup first |
 | `GET /api/reminders` | follow-ups due, upcoming/missed deadlines, applications gone quiet; `?days=7&staleDays=21&list=<id>` |
@@ -106,6 +107,10 @@ writes through the same API as everything else.
   panel lists who is linked, other people you know at that company, and "Find SFU alumni at Stripe"
   links. Those only open a normal search in your own browser: nothing is scraped or sent anywhere.
   People due a follow-up show in Reminders. The school is a setting; blank puts the default back.
+  **Found someone on LinkedIn?** In an application's People section, paste their profile link (or several,
+  one per line): they are added at that company, linked to the application, and marked alumni (or whatever
+  you pick). The name is worked out from the link, so check it. Someone you already have is linked, never
+  duplicated. Only the text of the link is read; nothing is fetched from LinkedIn.
   **Import from LinkedIn** reads the `Connections.csv` you download from LinkedIn (Settings, Data
   privacy, Get a copy of your data). It adds only the people who work at a company you already have;
   exact and "Inc."-style matches link automatically, close ones ("Amazon Web Services", "Jane Street

@@ -214,3 +214,41 @@ test("at most three candidates are offered, however many of your companies look 
   assert.equal(m.tier, "similar");
   assert.equal(m.candidates!.length, 3);
 });
+
+// ---------- a name from a pasted profile link ----------
+import { nameFromProfileUrl } from "./linkedin.ts";
+
+test("a name from a profile link: the id LinkedIn adds to common names and trailing credentials are dropped, the rest is title-cased", () => {
+  const n = (slug: string) => nameFromProfileUrl(`https://www.linkedin.com/in/${slug}`);
+  assert.equal(n("priya-shah"), "Priya Shah");
+  assert.equal(n("priya-shah-4a8b21"), "Priya Shah");            // hex id with a digit
+  assert.equal(n("priya-shah-1a2b3c4d5"), "Priya Shah");
+  assert.equal(n("john-smith-123456789"), "John Smith");          // numeric id
+  assert.equal(n("john-smith-2"), "John Smith");                  // a numeric suffix is never part of a name
+  assert.equal(n("jo-lee-cfa"), "Jo Lee");
+  assert.equal(n("jo-lee-mba-cfa"), "Jo Lee");
+  assert.equal(n("jo-lee-cfa-4a8b21"), "Jo Lee");                 // an id then a credential
+  assert.equal(n("ana-maria-garcia-lopez"), "Ana Maria Garcia Lopez");
+  assert.equal(n("jos%C3%A9-garc%C3%ADa"), "José García");        // percent-encoded accents decode
+  assert.equal(n("ben-deadbeef"), "Ben Deadbeef");                // hex-looking but no digit: a name, kept
+  assert.equal(n("jdoe"), "Jdoe");                                // a one-word handle: a guess the UI asks you to check
+});
+
+test("a link that is only an id has no guessable name, and anything that isn't a profile link has none", () => {
+  assert.equal(nameFromProfileUrl("https://www.linkedin.com/in/123456789"), null);
+  assert.equal(nameFromProfileUrl("https://www.linkedin.com/in/4a8b21c3"), null);
+  assert.equal(nameFromProfileUrl("https://www.linkedin.com/in/x"), null);          // under two letters
+  for (const bad of ["", "javascript:alert(1)", "https://evil.com/in/priya-shah", "https://www.linkedin.com/company/stripe", "priya shah", "http://www.linkedin.com/in/priya-shah"]) assert.equal(nameFromProfileUrl(bad), null, bad);
+});
+
+test("query strings, trailing slashes, locale subdomains and the mobile form of a link all work", () => {
+  for (const u of ["https://www.linkedin.com/in/priya-shah-4a8b21?miniProfileUrn=urn%3Ali%3Afs&trk=x", "https://ca.linkedin.com/in/priya-shah-4a8b21/", "https://www.linkedin.com/mwlite/in/priya-shah-4a8b21", "https://linkedin.com/in/Priya-Shah-4A8B21#about"]) {
+    assert.equal(normalizeProfileUrl(u), "linkedin.com/in/priya-shah-4a8b21", u);
+    assert.equal(nameFromProfileUrl(u), "Priya Shah", u);
+  }
+});
+
+test("the trailing-id rule has a floor: a hex-looking token of five characters is part of a name, six is an id", () => {
+  assert.equal(nameFromProfileUrl("https://www.linkedin.com/in/ed-a1b2c"), "Ed A1b2c");
+  assert.equal(nameFromProfileUrl("https://www.linkedin.com/in/ed-a1b2c3"), "Ed");
+});

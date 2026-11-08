@@ -3,10 +3,11 @@
 
 import { alumniLinks } from "../domain/alumni.ts";
 import type { AlumniLink } from "../domain/alumni.ts";
-import { parseContactPatch, parseContactQuery, parseEvent, parseLink, parseNewContact } from "../domain/contact.ts";
+import { parseContactPatch, parseContactQuery, parseEvent, parseFromProfile, parseLink, parseNewContact } from "../domain/contact.ts";
 import type { Contact, ContactEvent, ContactSummary, LinkedApplication, LinkedContact } from "../domain/contact.ts";
 import { toIsoDate } from "../domain/dates.ts";
-import { NotFoundError } from "../domain/errors.ts";
+import { NotFoundError, ValidationError } from "../domain/errors.ts";
+import { nameFromProfileUrl, normalizeProfileUrl } from "../domain/linkedin.ts";
 import type { ApplicationRepository, ContactRepository, SettingsRepository } from "../domain/ports.ts";
 import { DEFAULT_SETTINGS, parseSettingsPatch } from "../domain/settings.ts";
 import type { Settings } from "../domain/settings.ts";
@@ -23,6 +24,12 @@ export interface ContactService {
   /** Links a person to an application with a role; linking again changes the role. Returns the application's people. */
   link(userId: number, id: number, raw: unknown): LinkedContact[];
   unlink(userId: number, id: number, applicationId: number): void;
+  /**
+   * Add the person behind a pasted LinkedIn profile link (the name is worked out from the link unless given), at the
+   * application's company and linked to it. If you already have that profile, no one is created; they are linked instead.
+   * Nothing is fetched from LinkedIn: only the text of the link is read.
+   */
+  addFromProfile(userId: number, raw: unknown): { contact: Contact; created: boolean; linked: boolean };
   /** For an application's panel: who is linked, other people you know at that company, and the alumni search links. */
   forApplication(userId: number, applicationId: number): { people: LinkedContact[]; atCompany: Contact[]; alumni: AlumniLink[] };
 }
@@ -103,6 +110,32 @@ export function createContactService(deps: { contacts: ContactRepository; applic
       mustFind(userId, id);
       if (!applications.findById(userId, applicationId)) throw new NotFoundError("application");
       contacts.unlink(userId, id, applicationId);
+    },
+
+    addFromProfile(userId, raw) {
+      const req = parseFromProfile(raw);
+      const key = normalizeProfileUrl(req.url);
+      if (!key) throw new ValidationError([{ field: "url", message: "must be a LinkedIn profile link, like https://www.linkedin.com/in/someone" }]);
+      const application = req.applicationId === null ? null : applications.findById(userId, req.applicationId);
+      if (req.applicationId !== null && !application) throw new NotFoundError("application");
+
+      const existing = contacts.list(userId, {}).find((c) => c.linkedinUrl !== null && normalizeProfileUrl(c.linkedinUrl) === key);
+      let contact: Contact;
+      let created = false;
+      if (existing) contact = existing;
+      else {
+        const name = req.name ?? nameFromProfileUrl(req.url);
+        if (!name) throw new ValidationError([{ field: "name", message: "couldn't be worked out from that link: type the person's name" }]);
+        contact = contacts.insert(userId, parseNewContact({ name, company: application?.company ?? null, linkedinUrl: `https://www.${key}`, relationship: req.relationship }), now());
+        created = true;
+      }
+      let linked = false;
+      if (application) {
+        // someone already linked keeps the role they have; a new link gets the one asked for
+        const already = contacts.forApplication(userId, application.id).some((p) => p.contact.id === contact.id);
+        if (!already) { contacts.link(userId, contact.id, application.id, req.role, now()); linked = true; }
+      }
+      return { contact, created, linked };
     },
 
     forApplication(userId, applicationId) {

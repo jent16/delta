@@ -255,3 +255,79 @@ test("the export is per user: each user's file holds only their own people", () 
   assert.deepEqual(t.exports.json(1).body.contacts.map((c) => c.name), ["Mine"]);
   assert.deepEqual(t.exports.json(2).body.contacts.map((c) => c.name), ["Theirs"]);
 });
+
+// ---------- pasting a profile link ----------
+const LINK = "https://www.linkedin.com/in/priya-shah-4a8b21";
+
+test("pasting a link adds the person at the application's company, as alumni, linked to it, with the name worked out from the link", () => {
+  const t = makeTracker();
+  const app = t.service.add(1, { company: "Stripe", roleTitle: "SWE" });
+  const r = t.contacts.addFromProfile(1, { url: `${LINK}?trk=x`, applicationId: app.id });
+  assert.deepEqual([r.created, r.linked, r.contact.name, r.contact.company, r.contact.relationship, r.contact.linkedinUrl], [true, true, "Priya Shah", "Stripe", "alumni", "https://www.linkedin.com/in/priya-shah-4a8b21"]);
+  assert.equal(r.contact.companyId, app.companyId);                                          // the company's own record, not a new one
+  assert.deepEqual(t.contacts.forApplication(1, app.id).people.map((p) => [p.contact.name, p.role]), [["Priya Shah", "other"]]);
+  assert.equal(t.companies.list(1).length, 1);
+});
+
+test("a name or relationship or role you give wins over the guess and the defaults", () => {
+  const t = makeTracker();
+  const app = t.service.add(1, { company: "Stripe", roleTitle: "SWE" });
+  const r = t.contacts.addFromProfile(1, { url: "https://www.linkedin.com/in/jdoe", applicationId: app.id, name: "Jane Doe", relationship: "recruiter", role: "recruiter" });
+  assert.deepEqual([r.contact.name, r.contact.relationship, t.contacts.forApplication(1, app.id).people[0]!.role], ["Jane Doe", "recruiter", "recruiter"]);
+});
+
+test("pasting the same person again, in ANY spelling of the link, creates no one new and never changes the role they already have", () => {
+  const t = makeTracker();
+  const app = t.service.add(1, { company: "Stripe", roleTitle: "SWE" });
+  const first = t.contacts.addFromProfile(1, { url: LINK, applicationId: app.id, role: "referrer" });
+  const again = t.contacts.addFromProfile(1, { url: "https://ca.linkedin.com/in/PRIYA-SHAH-4A8B21/?x=1", applicationId: app.id, role: "interviewer" });
+  assert.deepEqual([again.created, again.linked, again.contact.id], [false, false, first.contact.id]);
+  assert.equal(t.contacts.forApplication(1, app.id).people[0]!.role, "referrer");
+  assert.equal(t.contacts.list(1, {}).length, 1);
+});
+
+test("someone you already have is linked to a NEW application rather than duplicated", () => {
+  const t = makeTracker();
+  const a1 = t.service.add(1, { company: "Stripe", roleTitle: "SWE" });
+  const a2 = t.service.add(1, { company: "Stripe", roleTitle: "PM" });
+  const p = t.contacts.add(1, { name: "Priya Shah", company: "Stripe", linkedinUrl: "https://www.linkedin.com/in/priya-shah-4a8b21" });
+  t.contacts.link(1, p.id, { applicationId: a1.id, role: "referrer" });
+  const r = t.contacts.addFromProfile(1, { url: LINK, applicationId: a2.id, role: "interviewer" });
+  assert.deepEqual([r.created, r.linked, r.contact.id], [false, true, p.id]);
+  assert.deepEqual(t.contacts.get(1, p.id).applications.map((l) => [l.applicationId, l.role]), [[a1.id, "referrer"], [a2.id, "interviewer"]]);
+  assert.equal(t.contacts.list(1, {}).length, 1);
+});
+
+test("without an application the person is simply added (no company, no link)", () => {
+  const t = makeTracker();
+  const r = t.contacts.addFromProfile(1, { url: LINK });
+  assert.deepEqual([r.created, r.linked, r.contact.company], [true, false, null]);
+});
+
+test("a link that isn't a LinkedIn profile, or has no guessable name, is refused with a reason, and nothing is created", () => {
+  const t = makeTracker();
+  const app = t.service.add(1, { company: "Stripe", roleTitle: "SWE" });
+  for (const url of ["https://www.linkedin.com/company/stripe", "javascript:alert(1)", "https://evil.com/in/priya", "not a link", "http://www.linkedin.com/in/priya"]) {
+    assert.throws(() => t.contacts.addFromProfile(1, { url, applicationId: app.id }), (e: unknown) => e instanceof ValidationError && e.issues[0]!.field === "url", url);
+  }
+  assert.throws(() => t.contacts.addFromProfile(1, { url: "https://www.linkedin.com/in/123456789", applicationId: app.id }), (e: unknown) => e instanceof ValidationError && /name/.test(e.message));
+  assert.equal(t.contacts.addFromProfile(1, { url: "https://www.linkedin.com/in/123456789", applicationId: app.id, name: "Typed Name" }).contact.name, "Typed Name"); // typing the name fixes it
+  assert.equal(t.contacts.list(1, {}).length, 1);
+});
+
+test("pasting for an unknown application, or another user's, is refused and creates nothing", () => {
+  const t = makeTracker();
+  other(t);
+  const theirs = t.service.add(2, { company: "Stripe", roleTitle: "SWE" });
+  assert.throws(() => t.contacts.addFromProfile(1, { url: LINK, applicationId: 999 }), NotFoundError);
+  assert.throws(() => t.contacts.addFromProfile(1, { url: LINK, applicationId: theirs.id }), NotFoundError);
+  assert.equal(count(t, "contacts"), 0);
+});
+
+test("per user: the same profile pasted by two users makes two separate contacts", () => {
+  const t = makeTracker();
+  other(t);
+  const a = t.contacts.addFromProfile(1, { url: LINK });
+  const b = t.contacts.addFromProfile(2, { url: LINK });
+  assert.deepEqual([a.created, b.created, a.contact.id === b.contact.id], [true, true, false]);
+});

@@ -120,11 +120,29 @@ export function cleanName(first: string, last: string): string {
 export function normalizeProfileUrl(url: string): string | null {
   if (!isLinkedInUrl(url)) return null;
   const u = new URL(url);
-  const m = /^\/in\/([^/]+)\/?/.exec(u.pathname);
+  const m = /^\/(?:mwlite\/)?in\/([^/]+)\/?/.exec(u.pathname);
   if (!m) return null;
   let slug: string;
   try { slug = decodeURIComponent(m[1]!); } catch { slug = m[1]!; }
   return `linkedin.com/in/${slug.toLowerCase()}`;
+}
+
+/**
+ * A best-guess display name from a profile link, so pasting an address is enough to add someone:
+ * `/in/priya-shah-4a8b21` -> "Priya Shah". The trailing id LinkedIn adds to common names (digits, or hex that
+ * contains a digit) and any trailing credential ("-cfa") are dropped. It is ONLY a guess, so the UI says
+ * "check the name"; a one-word handle ("jdoe") comes out as "Jdoe" and a link that is all id gives null.
+ */
+export function nameFromProfileUrl(url: string): string | null {
+  const key = normalizeProfileUrl(url);
+  if (!key) return null;
+  const isId = (t: string) => /^\d+$/.test(t) || (/^[0-9a-f]{6,}$/.test(t) && /\d/.test(t));
+  const tokens = key.slice("linkedin.com/in/".length).split("-").filter(Boolean);
+  while (tokens.length > 1 && isId(tokens[tokens.length - 1]!)) tokens.pop();
+  while (tokens.length > 1 && CREDENTIALS.includes(tokens[tokens.length - 1]!)) tokens.pop();
+  if (!tokens.length || (tokens.length === 1 && isId(tokens[0]!))) return null;
+  const name = tokens.map((t) => t.charAt(0).toUpperCase() + t.slice(1)).join(" ");
+  return name.length >= 2 ? name : null;
 }
 
 /** The address to store: the canonical https form of a valid profile link. */

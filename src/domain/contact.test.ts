@@ -104,3 +104,15 @@ test("settings: the school can be set, and blank or null puts the default back",
   assert.deepEqual(issues(() => parseSettingsPatch({ school: "x".repeat(101) })), ["school"]);
   assert.deepEqual(issues(() => parseSettingsPatch({ theme: "dark" })), ["theme"]);
 });
+
+import { parseFromProfile } from "./contact.ts";
+
+test("pasting a profile link: the link is required; relationship defaults to alumni and role to other; everything else is checked", () => {
+  assert.deepEqual(parseFromProfile({ url: " https://www.linkedin.com/in/a " }), { url: "https://www.linkedin.com/in/a", applicationId: null, name: null, relationship: "alumni", role: "other" });
+  assert.deepEqual(parseFromProfile({ url: "u", applicationId: 4, name: "  Priya   Shah ", relationship: "recruiter", role: "referrer" }), { url: "u", applicationId: 4, name: "Priya Shah", relationship: "recruiter", role: "referrer" });
+  for (const [bad, field] of [[{}, "url"], [{ url: "" }, "url"], [{ url: 5 }, "url"], [{ url: "u", applicationId: "4" }, "applicationId"], [{ url: "u", applicationId: 0 }, "applicationId"], [{ url: "u", name: 5 }, "name"],
+    [{ url: "u", name: "x".repeat(201) }, "name"], [{ url: "u", relationship: "boss" }, "relationship"], [{ url: "u", role: "boss" }, "role"], [{ url: "u", extra: 1 }, "extra"]] as const) {
+    assert.deepEqual(issues(() => parseFromProfile(bad)), [field], JSON.stringify(bad));
+  }
+  assert.deepEqual(issues(() => parseFromProfile(null)), ["(body)"]);
+});

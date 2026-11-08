@@ -435,3 +435,15 @@ export has no school, so "alumni" is never guessed; only a recruiter title is su
 default 100 KB), and a too-large body is a 413 rather than a 500. A labelled `pre-import` backup is
 taken just before writing, and only when something will be written.
 
+## 41. Finding people on LinkedIn stays manual, and pasting a link makes it nearly free
+LinkedIn has no way for an ordinary account to search for people through an official interface, and
+scraping or driving a logged-in browser breaks its terms and gets accounts restricted, which would cost
+more than the time saved. So the app never contacts LinkedIn. What it does: builds the search address
+(decision 39); imports the connections file you download from LinkedIn yourself (decision 40); and
+turns a pasted profile link into a contact. Pasting a link reads only the TEXT of the address you give it:
+the name is guessed from the handle (`priya-shah-4a8b21` is "Priya Shah"; the id LinkedIn adds to common
+names and trailing credentials are dropped), the person is added at the application's company, linked to
+it, and marked alumni unless you say otherwise. It is a guess, so the toast says to check it, and a link
+that is only an id asks you to type the name. Someone you already have, under any spelling of their
+link, is linked rather than duplicated and keeps the role they already had on that application.
+

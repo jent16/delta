@@ -48,21 +48,31 @@ export function editDistance(a: string, b: string): number {
 
 const RANK: Record<MatchKind, number> = { exact: 0, prefix: 1, contains: 2, similar: 3 };
 
+/**
+ * How many edits away a name is from what was typed, or null when it is not a plausible "did you mean".
+ * Only for longer words (a slip is a small part of them), only when the first letter matches (typos rarely
+ * change it), and only against the whole name, its first word, or the START of either: the start is what
+ * you have typed so far, so "norht" (an unfinished, misspelt word) still finds "northwind".
+ * Matching any word made "jane" suggest "Hamilton Lane".
+ */
+function nearMiss(query: string, name: string): number | null {
+  if (query.length < 5) return null;
+  const allowed = query.length <= 5 ? 1 : 2;
+  const first = name.split(" ")[0]!;
+  let best: number | null = null;
+  for (const candidate of [name, first, name.slice(0, query.length), first.slice(0, query.length)]) {
+    if (candidate[0] !== query[0]) continue;
+    const d = editDistance(query, candidate);
+    if (d <= allowed && (best === null || d < best)) best = d;
+  }
+  return best;
+}
+
 function classify(query: string, name: string): MatchKind | null {
   if (name === query) return "exact";
   if (name.startsWith(query)) return "prefix";
   if (name.split(" ").some((w) => w.startsWith(query)) || name.includes(query)) return "contains";
-  // "Did you mean": only for longer words (a slip is a small part of them), only when the first
-  // letter matches (typos rarely change it), and only against the whole name or its first word.
-  // Matching any word made "jane" suggest "Hamilton Lane".
-  if (query.length >= 5) {
-    const allowed = query.length <= 5 ? 1 : 2;
-    const first = name.split(" ")[0]!;
-    for (const candidate of [name, first]) {
-      if (candidate[0] === query[0] && editDistance(query, candidate) <= allowed) return "similar";
-    }
-  }
-  return null;
+  return nearMiss(query, name) === null ? null : "similar";
 }
 
 export function searchCompanies(query: string, candidates: CompanyCandidate[], limit = 8): CompanySuggestion[] {
@@ -80,7 +90,7 @@ export function searchCompanies(query: string, candidates: CompanyCandidate[], l
   for (const [key, c] of unique) {
     const match = classify(q, key);
     // closeness, used only to order near-misses: "Rippling" (1 edit from "ripling") before "Relling" (2)
-    if (match) hits.push({ ...c, match, key, dist: match === "similar" ? Math.min(editDistance(q, key), editDistance(q, key.split(" ")[0]!)) : 0 });
+    if (match) hits.push({ ...c, match, key, dist: match === "similar" ? (nearMiss(q, key) ?? 0) : 0 });
   }
   // near-misses are a fallback for when the real matches are few
   const strong = hits.filter((h) => h.match !== "similar").length;

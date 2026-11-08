@@ -64,3 +64,14 @@ test("limit, empty queries, and nothing found", () => {
   assert.deepEqual(searchCompanies("!!!", dir("Stripe")), []);
   assert.deepEqual(searchCompanies("zzzzqq", dir("Stripe")), []);
 });
+
+test("a typo in the part you have typed so far still finds the company (an unfinished, misspelt word)", () => {
+  assert.deepEqual(names(searchCompanies("norht", dir("Northwind Labs", "Northgate", "Zephyr"))), ["Northgate", "Northwind Labs"]);
+  assert.deepEqual(names(searchCompanies("stirp", dir("Stripe", "Zephyr"))), ["Stripe"]); // one swap from the start of "stripe"
+});
+
+test("the unfinished-word rule keeps the same limits: first letter must match, and nonsense stays quiet", () => {
+  assert.deepEqual(searchCompanies("morht", dir("Northwind Labs")), []);   // different first letter
+  assert.deepEqual(searchCompanies("zzxqw", dir("Northwind Labs")), []);
+  assert.deepEqual(searchCompanies("nor", dir("Northwind Labs")).map((s) => s.match), ["prefix"]); // short queries are ordinary prefix matching
+});

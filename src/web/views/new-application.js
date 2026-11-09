@@ -32,6 +32,7 @@ export function openNewApplication() {
   const status = h("select", { id: "f-status" }, START_STATUSES.map(([value, text]) => h("option", { value, text })));
   const appliedOn = h("input", { id: "f-date", type: "date", value: today() });
   const appliedField = h("div", { class: "field", hidden: true }, h("label", { for: "f-date", text: "Applied on" }), appliedOn);
+  const deadline = h("input", { id: "f-deadline", type: "date" });
   const location = h("input", { id: "f-loc", type: "text", placeholder: "City or Remote" });
   status.addEventListener("change", () => { appliedField.hidden = status.value !== "applied"; });
 
@@ -122,6 +123,7 @@ export function openNewApplication() {
     if (location.value.trim()) body.location = location.value.trim();
     if (term.value.trim()) body.term = term.value.trim();
     if (posting.value.trim()) body.url = posting.value.trim();
+    if (deadline.value) body.deadlineOn = deadline.value;
     if (status.value === "applied") body.appliedOn = appliedOn.value || today(); // the server turns an applied date into an Applied status
     else body.status = status.value;
     submit.disabled = true;
@@ -146,7 +148,8 @@ export function openNewApplication() {
       h("div", { class: "field" }, h("label", { for: "f-role", text: "Role" }), role),
       h("div", { class: "field" }, h("label", { for: "f-url", text: "Job posting link" }), posting),
       h("div", { class: "row2" }, h("div", { class: "field" }, h("label", { for: "f-fn", text: "Function" }), fn), h("div", { class: "field" }, h("label", { for: "f-sector", text: "Sector" }), sector, sectorNote)),
-      h("div", { class: "row2" }, h("div", { class: "field" }, h("label", { for: "f-status", text: "Status" }), status), appliedField),
+      h("div", { class: "row2" }, h("div", { class: "field" }, h("label", { for: "f-status", text: "Status" }), status), h("div", { class: "field" }, h("label", { for: "f-deadline", text: "Application deadline (optional)" }), deadline)),
+      appliedField,
       h("div", { class: "row2" }, h("div", { class: "field" }, h("label", { for: "f-loc", text: "Location" }), location), h("div", { class: "field" }, h("label", { for: "f-term", text: "Term (optional)" }), term)),
       h("div", { class: "form-actions" }, h("button", { class: "btn", type: "button", onclick: closeOverlays, text: "Cancel" }), submit)));
   openOverlay(modal, company);

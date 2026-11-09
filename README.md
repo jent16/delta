@@ -149,7 +149,7 @@ on a short **welcome page** (what Delta does and how it works, in `src/web/views
 is **Create your account**, and that account takes over the data already in it
 (your existing applications stay yours). Later sign-ups start empty and can never see yours.
 
-- **Sign-in** is email + password. Passwords are stored only as scrypt hashes; a session is a
+- **Sign-in** is email + password. Any password is accepted; the page just warns while you type if it is easy to guess. Passwords are stored only as scrypt hashes; a session is a
   random token in an HttpOnly, SameSite cookie, of which only a SHA-256 is stored. A session ends
   after 30 idle days, or 90 days at most. Changing your password signs every other browser out.
   Wrong passwords are slowed down (five tries, then 15 minutes), and an unknown email and a wrong

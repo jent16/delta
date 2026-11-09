@@ -3,6 +3,7 @@
 import { api, describeError } from "../lib/api.js";
 import { $, clear, h } from "../lib/dom.js";
 import { reduced, staggerIn } from "../lib/motion.js";
+import { passwordWarning } from "../lib/ui.js";
 
 /**
  * `info` is /api/auth/state. `onSignedIn(account)` runs once the server has accepted the sign-in.
@@ -27,7 +28,8 @@ export function showAuth(info, onSignedIn, options = {}) {
       signingUp ? h("div", { class: "field" }, h("label", { for: "a-name", text: "Your name" }), name) : null,
       h("div", { class: "field" }, h("label", { for: "a-email", text: "Email" }), email),
       h("div", { class: "field" }, h("label", { for: "a-password", text: "Password" }), password,
-        signingUp ? h("span", { class: "hint", text: "At least 10 characters. A few random words make a good one." }) : null),
+        signingUp ? h("span", { class: "hint", text: "Use whatever you like. Longer is safer; a few random words work well." }) : null,
+        signingUp ? passwordWarning(password, () => email.value) : null),
       h("label", { class: "auth-show", for: "a-show" }, show, "Show password"),
       problem, go);
 

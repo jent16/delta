@@ -113,7 +113,7 @@ export function createAuthService(deps: {
 
     changePassword(userId, raw, currentTokenHash) {
       const user = mustBeUser(userId);
-      const { current, next } = parsePasswordChange(raw, user.email);
+      const { current, next } = parsePasswordChange(raw);
       checkPassword(user, current, "current");
       users.setPassword(userId, hasher.hash(next));
       sessions.removeForUser(userId, currentTokenHash); // anyone else who was signed in (or had stolen a cookie) is out

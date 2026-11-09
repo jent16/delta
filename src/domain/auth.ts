@@ -6,8 +6,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { ValidationError } from "./errors.ts";
 import type { ValidationIssue } from "./errors.ts";
 
-export const MIN_PASSWORD = 10;
-export const MAX_PASSWORD = 200; // a hash of a huge input is a cheap way to tie up a server
+export const MAX_PASSWORD = 200; // the one technical limit: a hash of a huge input is a cheap way to tie up a server
 export const SESSION_IDLE_DAYS = 30;     // signed out after this long without opening the app
 export const SESSION_MAX_DAYS = 90;      // and never stay signed in longer than this, however often you visit
 export const SESSION_TOUCH_AFTER_MS = 6 * 3_600_000; // "last seen" is rewritten at most every 6 hours, not on every click
@@ -26,15 +25,12 @@ export function emailKey(email: string): string {
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// the passwords everybody tries first; a short blocklist, not a promise. Length is what actually protects you.
-const COMMON = new Set(["password", "password1", "password12", "password123", "1234567890", "12345678910", "qwertyuiop", "iloveyou12", "letmein123", "0123456789", "abcdefghij", "1q2w3e4r5t", "qwerty12345", "admin12345", "welcome123"]);
-
-function passwordIssues(password: string, email: string | null): string | null {
-  if (password.length < MIN_PASSWORD) return `must be at least ${MIN_PASSWORD} characters`;
+// Deliberately NO rules about what a password must contain or how short it may be: it is whatever the person wants.
+// The page warns, as they type, when a password is easy to guess (web/lib/password-strength.js); it never blocks.
+// Only an empty password (nothing to hash) and a huge one (a cheap way to tie up the server) are refused.
+function passwordIssues(password: string): string | null {
+  if (!password) return "is required";
   if (password.length > MAX_PASSWORD) return `must be at most ${MAX_PASSWORD} characters`;
-  const lowered = password.toLowerCase();
-  if (COMMON.has(lowered) || /^(.)\1+$/.test(password)) return "is too easy to guess";
-  if (email && (lowered === email.toLowerCase() || lowered === email.split("@")[0]!.toLowerCase())) return "must not be your email";
   return null;
 }
 
@@ -68,7 +64,7 @@ export function parseSignup(raw: unknown): Signup {
   const password = typeof body.password === "string" ? body.password : "";
   if (typeof body.password !== "string") issues.push({ field: "password", message: "is required" });
   else {
-    const problem = passwordIssues(password, email || null);
+    const problem = passwordIssues(password);
     if (problem) issues.push({ field: "password", message: problem });
   }
   if (issues.length) throw new ValidationError(issues);
@@ -77,7 +73,7 @@ export function parseSignup(raw: unknown): Signup {
 
 export function parseLogin(raw: unknown): { email: string; password: string } {
   const body = asObject(raw);
-  // deliberately lenient: a login only needs to be well-formed; the rules for what a GOOD password is apply when choosing one
+  // deliberately lenient: a login only needs to be well-formed; the only choosing a password is checked at all (and only for empty or enormous)
   if (typeof body.email !== "string" || !body.email.trim() || typeof body.password !== "string" || !body.password) {
     throw new ValidationError([{ field: "(body)", message: "enter your email and password" }]);
   }
@@ -85,12 +81,12 @@ export function parseLogin(raw: unknown): { email: string; password: string } {
   return { email: body.email.trim(), password: body.password };
 }
 
-export function parsePasswordChange(raw: unknown, email: string | null): { current: string; next: string } {
+export function parsePasswordChange(raw: unknown): { current: string; next: string } {
   const body = asObject(raw);
   const issues: ValidationIssue[] = [];
   if (typeof body.current !== "string" || !body.current) issues.push({ field: "current", message: "enter your current password" });
   const next = typeof body.next === "string" ? body.next : "";
-  const problem = typeof body.next === "string" ? passwordIssues(next, email) : "is required";
+  const problem = typeof body.next === "string" ? passwordIssues(next) : "is required";
   if (problem) issues.push({ field: "next", message: problem });
   if (issues.length) throw new ValidationError(issues);
   return { current: body.current as string, next };

@@ -497,3 +497,14 @@ database starts with no school.
 is neither removed nor wired in. It lives in `lib/`, `scripts/` and `server.js` with its own database. Its
 endpoints have no login and some spend paid API credits, so only `src/main.ts` is ever deployed
 (see `hosting.md`). Revisit when step 7 is picked up: either fold it in behind the same sign-in, or delete it.
+
+## 44. Passwords are whatever the person wants, with a warning instead of a rule
+The server used to refuse passwords under 10 characters, common ones, repeated characters and your own email.
+That is gone: **any non-empty password is accepted**, as typed (spaces included). The only limits left are
+technical: not empty, and at most 200 characters, because hashing an enormous input is a cheap way to tie up a
+server. In their place the sign-up and change-password boxes **warn as you type** when a password is short,
+common, one repeated character, only digits, or your email: "Simple passwords are much more likely to be
+broken into... You can still use it." The warning never blocks. It lives in the page
+(`web/lib/password-strength.js`, tested in `web-password.test.ts`), not on the server, because it is advice for
+the person choosing and not something the server needs to enforce. What still protects a weak password: the
+lock after five wrong tries (15 minutes per email) and scrypt hashing. Accounts made earlier keep working.

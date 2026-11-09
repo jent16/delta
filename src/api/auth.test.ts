@@ -187,10 +187,13 @@ test("closed sign-ups: refused with 403 once the existing data is claimed", asyn
 test("sign-up validation comes back as field issues", async (t) => {
   const api = await startAuthApi();
   t.after(() => api.close());
-  const r = await api.browser().call("POST", "/api/auth/signup", { name: "", email: "x", password: "short" });
+  const r = await api.browser().call("POST", "/api/auth/signup", { name: "", email: "x", password: "" });
   assert.equal(r.status, 400);
   assert.deepEqual(r.body.issues.map((i: { field: string }) => i.field), ["email", "name", "password"]);
   assert.equal(r.setCookie, null);
+  // a short, simple password is NOT a validation problem: the page warns, the server accepts
+  const ok = await api.browser().call("POST", "/api/auth/signup", { name: "A", email: "a@example.com", password: "abc" });
+  assert.equal(ok.status, 201);
 });
 
 test("profile and resume versions over HTTP", async (t) => {

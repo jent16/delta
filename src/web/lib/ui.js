@@ -4,6 +4,7 @@
 import { $, clear, h, icon } from "./dom.js";
 import { DURATION } from "./motion-math.js";
 import { cancelMotion, hideWith, popIn, popOut, slideIn, slideOut } from "./motion.js";
+import { passwordWeakness, WARNING } from "./password-strength.js";
 import { label, vocab } from "./state.js";
 
 // ---- company "logo": the first letter on a colour chosen from the name (the same name is always the same colour) ----
@@ -115,3 +116,19 @@ export function externalLink(url, text, hostOk) {
   return h("a", { class: "link-out", href, target: "_blank", rel: "noopener noreferrer" }, text, icon("external", 12));
 }
 export const SEARCH_HOSTS = (host) => host === "www.linkedin.com" || host === "www.google.com";
+
+/**
+ * A live warning under a password box: appears while what is typed is easy to guess, goes away when it isn't.
+ * It only informs; the server accepts any password, and nothing here blocks submitting.
+ * `emailOf()` returns the email to compare with (it may still be being typed).
+ */
+export function passwordWarning(input, emailOf = () => "") {
+  const note = h("div", { class: "pw-warning", role: "status", "aria-live": "polite", hidden: true });
+  const update = () => {
+    const why = passwordWeakness(input.value, emailOf());
+    note.hidden = !why;
+    note.textContent = why ? `Heads up: ${why}. ${WARNING}` : "";
+  };
+  input.addEventListener("input", update);
+  return note;
+}

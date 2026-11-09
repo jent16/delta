@@ -7,7 +7,7 @@ import { ctx } from "../lib/ctx.js";
 import { passwordDialog } from "../lib/confirm.js";
 import { plural } from "../lib/format.js";
 import { state, vocab } from "../lib/state.js";
-import { toast } from "../lib/ui.js";
+import { passwordWarning, toast } from "../lib/ui.js";
 
 const memberSince = (iso) => new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
 
@@ -118,7 +118,7 @@ export async function profileView() {
   const next = h("input", { id: "pw-next", type: "password", autocomplete: "new-password", maxlength: "200" });
   const changeBtn = h("button", { class: "btn", type: "submit", text: "Change password" });
   const pwForm = h("form", { class: "pw-form" },
-    h("div", { class: "edit-grid" }, field("pw-current", "Current password", current), field("pw-next", "New password", next, "At least 10 characters.")), changeBtn);
+    h("div", { class: "edit-grid" }, field("pw-current", "Current password", current), field("pw-next", "New password", next, "Anything you like. Longer is safer.")), passwordWarning(next, () => state.account?.email ?? ""), changeBtn);
   pwForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     changeBtn.disabled = true;

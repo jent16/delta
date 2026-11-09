@@ -137,7 +137,7 @@ test("changing the password: needs the current one, signs other browsers out, ke
   const me = t.auth.authenticate(a.token)!;
   assert.deepEqual(issues(() => t.auth.changePassword(1, { current: "wrong password!", next: "a brand new password" }, me.tokenHash)), ["current: is not right"]);
   assert.ok(t.auth.authenticate(other.token)); // nothing happened yet
-  assert.deepEqual(issues(() => t.auth.changePassword(1, { current: ME.password, next: "short" }, me.tokenHash)), ["next: must be at least 10 characters"]);
+  assert.deepEqual(issues(() => t.auth.changePassword(1, { current: ME.password, next: "" }, me.tokenHash)), ["next: is required"]);
   t.auth.changePassword(1, { current: ME.password, next: "a brand new password" }, me.tokenHash);
   assert.ok(t.auth.authenticate(a.token));
   assert.equal(t.auth.authenticate(other.token), null);

@@ -14,7 +14,7 @@ test("emails are compared lowercased and trimmed", () => {
   assert.equal(emailKey("  Justin@Example.COM "), "justin@example.com");
 });
 
-test("a sign-up needs a name, a plausible email and a password of 10+ characters", () => {
+test("a sign-up needs a name, a plausible email and a password", () => {
   assert.deepEqual(parseSignup({ ...good, name: "  Justin   Tan ", email: " justin@example.com " }), { name: "Justin Tan", email: "justin@example.com", password: "a long enough one" });
   assert.deepEqual(fields(() => parseSignup({})), ["email", "name", "password"]);
   assert.deepEqual(fields(() => parseSignup({ ...good, email: "nope" })), ["email"]);
@@ -26,17 +26,14 @@ test("a sign-up needs a name, a plausible email and a password of 10+ characters
   assert.deepEqual(fields(() => parseSignup({ ...good, password: 12345678901 })), ["password"]);
 });
 
-test("password rules: length bounds (inclusive), common passwords, repeated characters, and the email itself", () => {
-  assert.deepEqual(fields(() => parseSignup({ ...good, password: "123456789" })), ["password"]);      // 9
-  assert.deepEqual(fields(() => parseSignup({ ...good, password: "x9!kq2m7zp" })), []);               // exactly 10
-  assert.deepEqual(fields(() => parseSignup({ ...good, password: "x".repeat(200) })), ["password"]);   // repeated, but allowed length
-  assert.deepEqual(fields(() => parseSignup({ ...good, password: "ab1".repeat(66) })), []);             // 198 chars fine
-  assert.deepEqual(fields(() => parseSignup({ ...good, password: `${"ab1".repeat(66)}abc` })), ["password"]); // 201: too long
-  assert.deepEqual(fields(() => parseSignup({ ...good, password: "ab1".repeat(66) + "ab" })), []);      // exactly 200
-  assert.deepEqual(fields(() => parseSignup({ ...good, password: "Password123" })), ["password"]);      // common, case-insensitively
-  assert.deepEqual(fields(() => parseSignup({ ...good, password: "aaaaaaaaaaaa" })), ["password"]);
-  assert.deepEqual(fields(() => parseSignup({ ...good, email: "longusername@example.com", password: "longusername" })), ["password"]);
-  assert.deepEqual(fields(() => parseSignup({ ...good, email: "someone@example.com", password: "SOMEONE@example.com" })), ["password"]);
+test("a password can be anything: short, common, repeated, the email itself. Only empty and enormous are refused", () => {
+  for (const password of ["1", "123456789", "password", "Password123", "aaaaaaaaaaaa", "      ", "justin@example.com", "x9!kq2m7zp", "ab1".repeat(66) + "ab"]) {
+    assert.deepEqual(fields(() => parseSignup({ ...good, password })), [], JSON.stringify(password));
+    assert.equal(parseSignup({ ...good, password }).password, password); // and it is kept exactly as typed, spaces included
+  }
+  assert.deepEqual(fields(() => parseSignup({ ...good, password: "" })), ["password"]);
+  assert.deepEqual(fields(() => parseSignup({ ...good, password: "x".repeat(201) })), ["password"]);
+  assert.deepEqual(fields(() => parseSignup({ ...good, password: "x".repeat(200) })), []); // exactly the limit
 });
 
 test("sign-in only needs both fields, and never explains which one was wrong", () => {
@@ -48,10 +45,11 @@ test("sign-in only needs both fields, and never explains which one was wrong", (
 });
 
 test("changing a password needs the current one and a good new one", () => {
-  assert.deepEqual(parsePasswordChange({ current: "old", next: "a brand new one" }, "x@y.co"), { current: "old", next: "a brand new one" });
-  assert.deepEqual(fields(() => parsePasswordChange({}, null)), ["current", "next"]);
-  assert.deepEqual(fields(() => parsePasswordChange({ current: "old", next: "short" }, null)), ["next"]);
-  assert.deepEqual(fields(() => parsePasswordChange({ current: "old", next: "x@y.co" }, "x@y.co")), ["next"]);
+  assert.deepEqual(parsePasswordChange({ current: "old", next: "a brand new one" }), { current: "old", next: "a brand new one" });
+  assert.deepEqual(fields(() => parsePasswordChange({})), ["current", "next"]);
+  assert.deepEqual(fields(() => parsePasswordChange({ current: "old", next: "short" })), []);
+  assert.deepEqual(fields(() => parsePasswordChange({ current: "old", next: "" })), ["next"]);
+  assert.deepEqual(fields(() => parsePasswordChange({ current: "old", next: "x".repeat(201) })), ["next"]);
   assert.deepEqual(fields(() => parsePasswordConfirmation({})), ["password"]);
   assert.deepEqual(parsePasswordConfirmation({ password: "p" }), { password: "p" });
   assert.deepEqual(fields(() => parseNameChange("  ")), ["name"]);

@@ -17,13 +17,14 @@ import { profileView } from "./views/profile.js";
 import { companiesLeave, companiesView } from "./views/companies.js";
 import { dashboardView } from "./views/dashboard.js";
 import { insightsView } from "./views/insights.js";
+import { interestedView } from "./views/interested.js";
 import { openDrawer } from "./views/drawer.js";
 import { openNewApplication } from "./views/new-application.js";
 import { openNewPerson, openPerson } from "./views/person.js";
 import { peopleLeave, peopleView } from "./views/people.js";
 import { remindersView } from "./views/reminders.js";
 
-const SCREENS = { dashboard: dashboardView, applications: applicationsView, companies: companiesView, people: peopleView, insights: insightsView, reminders: remindersView, profile: profileView };
+const SCREENS = { dashboard: dashboardView, interested: interestedView, applications: applicationsView, companies: companiesView, people: peopleView, insights: insightsView, reminders: remindersView, profile: profileView };
 
 let badgeCount = 0;
 let renderToken = 0;
@@ -36,7 +37,7 @@ function renderTop() {
     icon(ic, 15), name, view === "reminders" ? h("span", { class: "badge", id: "badge", text: String(badgeCount), hidden: badgeCount === 0 }) : null);
   clear($("#topbar")).append(
     brand,
-    h("nav", { class: "nav", "aria-label": "Main", "data-knob": "nav" }, nav("grid", "Dashboard", "dashboard"), nav("rows", "Applications", "applications"), nav("building", "Companies", "companies"), nav("person", "People", "people"), nav("chart", "Insights", "insights"), nav("bell", "Reminders", "reminders")),
+    h("nav", { class: "nav", "aria-label": "Main", "data-knob": "nav" }, nav("grid", "Dashboard", "dashboard"), nav("star", "Interested", "interested"), nav("rows", "Applications", "applications"), nav("building", "Companies", "companies"), nav("person", "People", "people"), nav("chart", "Insights", "insights"), nav("bell", "Reminders", "reminders")),
     h("button", { class: "btn small appearance", type: "button", "aria-haspopup": "menu", "aria-label": "Appearance: mode and design", onclick: (e) => { e.stopPropagation(); appearanceMenu(e.currentTarget); } }, icon("palette", 15), "Appearance"),
     h("button", { class: "btn small account-btn", type: "button", "aria-haspopup": "menu", "aria-label": `Account: ${state.account.name}`, "aria-current": state.view === "profile" ? "page" : null, onclick: (e) => { e.stopPropagation(); accountMenu(e.currentTarget); } },
       h("span", { class: "avatar", text: (state.account.name.trim()[0] ?? "?").toUpperCase(), "aria-hidden": "true" }), h("span", { class: "acct-name", text: state.account.name })));

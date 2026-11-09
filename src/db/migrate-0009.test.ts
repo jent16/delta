@@ -23,7 +23,7 @@ test("0009: people who already have applications keep Simon Fraser as their scho
   for (const [id, u] of [[1, 1], [2, 3]]) db.prepare("INSERT INTO applications (id, user_id, company_id, role_title, status, dedupe_key, created_at, updated_at) VALUES (?, ?, ?, 'SWE', 'saved', ?, 't', 't')").run(id, u, id, `k${id}`);
   db.prepare("INSERT INTO user_settings (user_id, key, value) VALUES (3, 'school', 'University of Waterloo')").run();
 
-  assert.deepEqual(migrate(db), ["0009"]);
+  assert.deepEqual(migrate(db, upTo("0009")), ["0009"]);
   const schools = db.prepare("SELECT user_id, value FROM user_settings WHERE key = 'school' ORDER BY user_id").all();
   assert.deepEqual(schools, [{ user_id: 1, value: "Simon Fraser University" }, { user_id: 3, value: "University of Waterloo" }]); // user 2 has no applications: nothing written; user 3's choice wins
 });

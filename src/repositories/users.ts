@@ -28,7 +28,7 @@ export function createUserRepository(db: Db): UserRepository {
     db.prepare("DELETE FROM status_events WHERE application_id IN (SELECT id FROM applications WHERE user_id = ?)").run(id);
     db.prepare("DELETE FROM application_contacts WHERE application_id IN (SELECT id FROM applications WHERE user_id = ?) OR contact_id IN (SELECT id FROM contacts WHERE user_id = ?)").run(id, id);
     db.prepare("DELETE FROM contact_events WHERE contact_id IN (SELECT id FROM contacts WHERE user_id = ?)").run(id);
-    for (const table of ["import_records", "contact_import_records", "contacts", "applications", "lists", "companies", "user_settings", "resume_versions", "sessions"]) {
+    for (const table of ["import_records", "contact_import_records", "contacts", "applications", "lists", "companies", "user_settings", "resume_versions", "interests", "sessions"]) {
       db.prepare(`DELETE FROM ${mine(table)}`).run(id);
     }
     db.prepare("DELETE FROM users WHERE id = ?").run(id);

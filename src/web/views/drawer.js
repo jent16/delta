@@ -12,7 +12,7 @@ import { DURATION, exitDuration } from "../lib/motion-math.js";
 import { closeOverlays, onClosing, openOverlay } from "../lib/overlay.js";
 import { fillPeople } from "./people-section.js";
 import { label, movesFrom, state, vocab } from "../lib/state.js";
-import { chip, logo, progressBar, toast } from "../lib/ui.js";
+import { chip, externalLink, logo, progressBar, toast } from "../lib/ui.js";
 
 let currentId = null;
 
@@ -77,6 +77,8 @@ function draw({ application: a, events, progress }, from) {
 
   // editable details: each field saves by itself when you leave it
   const grid = h("div", { class: "edit-grid" });
+  // while you are drafting, the link to the posting gets its own box at the top: it is what you keep coming back for
+  const linkBox = a.status === "drafting" ? h("div", { class: "sect link-box" }, h("h3", { text: "Job posting" })) : null;
   for (const f of FIELDS) {
     const id = `d-${f.key}`;
     let stored = a[f.key] ?? ""; // what the server last confirmed; updated after each successful save
@@ -98,6 +100,10 @@ function draw({ application: a, events, progress }, from) {
     });
     grid.append(h("div", { class: `field${f.wide ? " wide" : ""}` }, h("label", { for: id, text: f.name }), input, f.hint ? h("span", { class: "hint", text: f.hint(a) }) : null,
       f.key === "resumeVersion" ? h("datalist", { id: "d-resume-names" }, state.resumeNames.map((n) => h("option", { value: n }))) : null));
+    if (f.key === "url") {
+      input.addEventListener("paste", () => setTimeout(() => input.dispatchEvent(new Event("change")), 0)); // saved the moment you paste it
+      if (linkBox) { linkBox.append(grid.lastChild); input.placeholder = "Paste the link to the job posting"; if (a.url) linkBox.append(h("div", { class: "link-open" }, externalLink(a.url, "Open posting", () => true))); }
+    }
   }
   const firstApplied = events.find((e) => e.status === "applied");
   const appliedOn = a.appliedOn ?? firstApplied?.occurredOn ?? null;
@@ -123,6 +129,7 @@ function draw({ application: a, events, progress }, from) {
     h("div", { class: "dh-top" }, close),
     h("div", { class: "dh-main" }, logo(a.company), h("div", { class: "drawer-title" }, h("h2", { text: a.company }), h("p", { text: a.roleTitle }))));
   const body = h("div", { class: "drawer-body" },
+    linkBox,
     h("div", { class: "sect" }, h("h3", { text: "Status" }),
       h("div", { class: "status-row" }, chip(a.status), h("div", {}, progressBar(progress, true), h("div", { class: "stage-names" }, vocab.progressStages.map((s) => h("span", { text: s }))))),
       next.length ? h("h3", { text: "Move to" }) : null, moves),

@@ -9,6 +9,8 @@ import { createApplicationRepository } from "../repositories/applications.ts";
 import { createCompanyRepository } from "../repositories/companies.ts";
 import { createContactRepository } from "../repositories/contacts.ts";
 import { createSettingsRepository } from "../repositories/settings.ts";
+import { createInterestRepository } from "../repositories/interests.ts";
+import { createInterestService } from "../services/interests.ts";
 import { createResumeVersionRepository } from "../repositories/resume-versions.ts";
 import { createSessionRepository, createUserRepository } from "../repositories/users.ts";
 import { createScryptHasher } from "../domain/password.ts";
@@ -49,7 +51,8 @@ export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0), sources?:
   const contacts = createContactService({ contacts: contactRepo, applications: applicationRepo, settings, clock });
   const linkedinBackups: number[] = []; // counts how many times the "back up first" hook ran
   const linkedin = createLinkedInImportService({ companies: companyRepo, contacts: contactRepo, contactService: contacts, ledger: createContactImportLedger(db), clock, beforeCommit: () => { linkedinBackups.push(1); } });
-  const exports = createExportService({ applications: applicationRepo, lists: listRepo, companies: companyRepo, contacts: contactRepo, clock });
+  const interestRepo = createInterestRepository(db);
+  const exports = createExportService({ applications: applicationRepo, lists: listRepo, companies: companyRepo, contacts: contactRepo, interests: interestRepo, clock });
   const companies = createCompanyService({ companies: companyRepo, clock, directory: directory ?? { names: async () => ({ names: [], available: true }) } });
   const insights = createInsightsService({ applications: applicationRepo, lists: listRepo, contacts: contactRepo, clock });
   const users = createUserRepository(db);
@@ -58,9 +61,11 @@ export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0), sources?:
   // a deliberately cheap hash cost: the tests are about behaviour, not about being slow
   const auth = createAuthService({ users, sessions, hasher: createScryptHasher({ N: 1024, r: 8, p: 1 }), clock, ...accountOptions, beforeDelete: () => { deletions.push(1); } });
   const profile = createProfileService({ users, settings: createSettingsRepository(db), versions: createResumeVersionRepository(db), clock });
+  const interests = createInterestService({ interests: interestRepo, applications: service, clock });
   return {
     db,
     users,
+    interests,
     sessions,
     auth,
     profile,
@@ -87,7 +92,7 @@ export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0), sources?:
 
 export async function startApi(userId = 1, sources?: SourceFactory, directory?: CompanyDirectory) {
   const t = makeTracker(undefined, sources, directory);
-  const app = createApp({ applications: t.service, lists: t.lists, imports: t.imports, exports: t.exports, companies: t.companies, contacts: t.contacts, settings: t.settings, linkedin: t.linkedin, insights: t.insights, profile: t.profile, currentUserId: () => userId });
+  const app = createApp({ applications: t.service, lists: t.lists, imports: t.imports, exports: t.exports, companies: t.companies, contacts: t.contacts, settings: t.settings, linkedin: t.linkedin, insights: t.insights, profile: t.profile, interests: t.interests, currentUserId: () => userId });
   const server = await new Promise<import("node:http").Server>((resolve) => {
     const s = app.listen(0, () => resolve(s));
   });
@@ -111,7 +116,7 @@ export async function startApi(userId = 1, sources?: SourceFactory, directory?: 
  */
 export async function startAuthApi(accountOptions: { allowSignup?: boolean; throttle?: LoginThrottle } = {}, secureCookies = false) {
   const t = makeTracker(undefined, undefined, undefined, accountOptions);
-  const app = createApp({ applications: t.service, lists: t.lists, imports: t.imports, exports: t.exports, companies: t.companies, contacts: t.contacts, settings: t.settings, linkedin: t.linkedin, insights: t.insights, profile: t.profile, auth: t.auth, secureCookies });
+  const app = createApp({ applications: t.service, lists: t.lists, imports: t.imports, exports: t.exports, companies: t.companies, contacts: t.contacts, settings: t.settings, linkedin: t.linkedin, insights: t.insights, profile: t.profile, interests: t.interests, auth: t.auth, secureCookies });
   const server = await new Promise<import("node:http").Server>((resolve) => {
     const s = app.listen(0, () => resolve(s));
   });

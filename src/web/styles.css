@@ -539,3 +539,19 @@ main { position: relative; }
 .auth-back { display: block; margin-bottom: 14px; }
 .pw-warning { margin: 4px 0 0; padding: 8px 10px; border-radius: 10px; font-size: 12.5px; line-height: 1.45; color: var(--fg); background: color-mix(in srgb, var(--warn) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--surface)); }
 .pw-form .pw-warning { margin: 0 0 12px; max-width: 560px; }
+
+/* ---------- Interested ---------- */
+.int-form { padding: 4px 2px 2px; }
+.int-form textarea, .int-card textarea { width: 100%; border: 1px solid var(--line-strong); border-radius: 10px; padding: 8px 10px; background: var(--surface); font: inherit; resize: vertical; min-height: 56px; }
+.int-form .row2 .field input, .int-card .field input { width: 100%; }
+.int-list { display: grid; gap: 14px; margin-top: 18px; }
+.int-card { display: grid; gap: 12px; }
+.int-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.int-name { font-weight: 700; font-size: 16px; flex: 1 1 200px; min-width: 0; }
+.int-open { margin-left: auto; font-size: 13px; }
+.int-actions { display: flex; justify-content: flex-end; align-items: center; gap: 10px; flex-wrap: wrap; }
+.int-card .err { margin: 0; }
+.link-box .field label { display: none; }
+.link-box { background: var(--panel-blue); border: 1px solid var(--panel-blue-line); border-radius: 14px; padding: 12px 14px 14px; }
+.link-box .field input { background: var(--surface); }
+.link-open { margin-top: 8px; font-size: 13px; }

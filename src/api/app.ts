@@ -14,6 +14,7 @@ import type { ExportService } from "../services/export.ts";
 import type { ImportService } from "../services/import.ts";
 import type { LinkedInImportService } from "../services/linkedin-import.ts";
 import type { InsightsService } from "../services/insights.ts";
+import type { InterestService } from "../services/interests.ts";
 import type { ListService } from "../services/lists.ts";
 import { describeVocabulary } from "../domain/vocab.ts";
 
@@ -34,6 +35,7 @@ export interface AppDeps {
    */
   auth?: AuthService;
   profile?: ProfileService;
+  interests?: InterestService;
   currentUserId?: (req: Request) => number;
   /** Mark the session cookie Secure (browsers then send it only over https). Turn on when the server is reached over https. */
   secureCookies?: boolean;
@@ -70,7 +72,7 @@ const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
 };
 
 export function createApp(deps: AppDeps) {
-  const { applications, lists, imports, exports: exporter, companies, contacts, settings, linkedin, insights, auth, profile, webRoot } = deps;
+  const { applications, lists, imports, exports: exporter, companies, contacts, settings, linkedin, insights, auth, profile, interests, webRoot } = deps;
   if (!auth && !deps.currentUserId) throw new Error("createApp needs `auth` (production) or `currentUserId` (tests)");
   const signedIn = new WeakMap<Request, { userId: number; tokenHash: string }>();
   const currentUserId = (req: Request): number => {
@@ -172,6 +174,18 @@ export function createApp(deps: AppDeps) {
       profile.removeResumeVersion(currentUserId(req), idParam(req));
       res.status(204).end();
     });
+  }
+
+  if (interests) {
+    app.get("/api/interests", (req, res) => void res.json({ interests: interests.list(currentUserId(req)) }));
+    app.post("/api/interests", (req, res) => void res.status(201).json(interests.add(currentUserId(req), req.body)));
+    app.patch("/api/interests/:id", (req, res) => void res.json(interests.edit(currentUserId(req), idParam(req), req.body)));
+    app.delete("/api/interests/:id", (req, res) => {
+      interests.remove(currentUserId(req), idParam(req));
+      res.status(204).end();
+    });
+    // turns it into an application (saved or drafting) and removes it from the list
+    app.post("/api/interests/:id/start", (req, res) => void res.status(201).json({ application: interests.start(currentUserId(req), idParam(req), req.body) }));
   }
 
   // the closed lists and the status rules, so a client never keeps its own copy

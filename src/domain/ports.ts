@@ -8,6 +8,7 @@ import type { Application, ApplicationFields, ApplicationPatch, ApplicationQuery
 import type { CompanySummary } from "./company-record.ts";
 import type { Contact, ContactEvent, ContactFields, ContactPatch, ContactQuery, ContactSummary, LinkedApplication, LinkedContact, LinkRole, NewContactEvent } from "./contact.ts";
 import type { ExportedApplication } from "./export.ts";
+import type { Interest, InterestFields, InterestPatch } from "./interest.ts";
 import type { ListFilter, ListPatch, NewList, SavedList } from "./list.ts";
 import type { ResumeVersion } from "./settings.ts";
 
@@ -133,6 +134,16 @@ export interface ResumeVersionRepository {
   remove(userId: number, id: number): boolean;
   /** Distinct resume-version text on applications that is not (yet) in the list, with how many applications use each. */
   unlisted(userId: number): { name: string; uses: number }[];
+}
+
+/** Jobs you might apply to: a company, maybe the role, a link and a note. */
+export interface InterestRepository {
+  /** Newest first. */
+  all(userId: number): Interest[];
+  findById(userId: number, id: number): Interest | null;
+  insert(userId: number, fields: InterestFields, now: string): Interest;
+  update(userId: number, id: number, patch: InterestPatch, now: string): Interest | null;
+  remove(userId: number, id: number): boolean;
 }
 
 export interface ListRepository {

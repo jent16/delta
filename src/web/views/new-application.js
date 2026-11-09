@@ -24,6 +24,7 @@ export function openNewApplication() {
   const list = h("ul", { class: "list", role: "listbox", id: "company-list", hidden: true });
   const company = h("input", { id: "f-company", type: "text", role: "combobox", "aria-expanded": "false", "aria-controls": "company-list", "aria-autocomplete": "list", placeholder: "Start typing a company", autocomplete: "off" });
   const role = h("input", { id: "f-role", type: "text", placeholder: "e.g. SWE Intern" });
+  const posting = h("input", { id: "f-url", type: "url", placeholder: "Paste the link to the job posting (optional)", autocomplete: "off", spellcheck: "false" });
   const term = h("input", { id: "f-term", type: "text", placeholder: "e.g. Summer 2027" });
   const fn = h("select", { id: "f-fn" }, vocab.roleFunctions.map((f) => h("option", { value: f, text: f })));
   const sector = h("select", { id: "f-sector" }, h("option", { value: "", text: "Not sure yet" }), vocab.sectors.map((s) => h("option", { value: s, text: s })));
@@ -120,6 +121,7 @@ export function openNewApplication() {
     if (sector.value) body.sector = sector.value;
     if (location.value.trim()) body.location = location.value.trim();
     if (term.value.trim()) body.term = term.value.trim();
+    if (posting.value.trim()) body.url = posting.value.trim();
     if (status.value === "applied") body.appliedOn = appliedOn.value || today(); // the server turns an applied date into an Applied status
     else body.status = status.value;
     submit.disabled = true;
@@ -142,6 +144,7 @@ export function openNewApplication() {
     h("form", { class: "form", onsubmit: onSubmit },
       h("div", { class: "field" }, h("label", { for: "f-company", text: "Company" }), h("div", { class: "combo" }, company, list), error, hint),
       h("div", { class: "field" }, h("label", { for: "f-role", text: "Role" }), role),
+      h("div", { class: "field" }, h("label", { for: "f-url", text: "Job posting link" }), posting),
       h("div", { class: "row2" }, h("div", { class: "field" }, h("label", { for: "f-fn", text: "Function" }), fn), h("div", { class: "field" }, h("label", { for: "f-sector", text: "Sector" }), sector, sectorNote)),
       h("div", { class: "row2" }, h("div", { class: "field" }, h("label", { for: "f-status", text: "Status" }), status), appliedField),
       h("div", { class: "row2" }, h("div", { class: "field" }, h("label", { for: "f-loc", text: "Location" }), location), h("div", { class: "field" }, h("label", { for: "f-term", text: "Term (optional)" }), term)),

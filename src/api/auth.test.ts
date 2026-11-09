@@ -11,7 +11,7 @@ test("signed out: every data route is 401; only health, vocab and the sign-in ro
   assert.equal((await b.call("GET", "/api/health")).status, 200);
   assert.equal((await b.call("GET", "/api/vocab")).status, 200);
   for (const [method, path] of [["GET", "/api/applications"], ["GET", "/api/contacts"], ["GET", "/api/companies"], ["GET", "/api/lists"], ["GET", "/api/stats"], ["GET", "/api/export"], ["GET", "/api/export.csv"],
-    ["GET", "/api/settings"], ["GET", "/api/profile"], ["POST", "/api/applications"], ["POST", "/api/import/linkedin/preview"], ["POST", "/api/auth/change-password"], ["POST", "/api/auth/delete-account"],
+    ["GET", "/api/settings"], ["GET", "/api/profile"], ["GET", "/api/interests"], ["POST", "/api/interests"], ["POST", "/api/applications"], ["POST", "/api/import/linkedin/preview"], ["POST", "/api/auth/change-password"], ["POST", "/api/auth/delete-account"],
     ["GET", "/api/reminders"], ["GET", "/api/pipeline"], ["GET", "/api/breakdowns"], ["POST", "/api/resume-versions"]] as const) {
     const r = await b.call(method, path, method === "POST" ? {} : undefined);
     assert.equal(r.status, 401, `${method} ${path}`);
@@ -230,4 +230,32 @@ test("the fixed-user test mode still works, and createApp refuses to start with 
   assert.equal((await api.call("GET", "/api/profile")).status, 200);
   const { createApp } = await import("./app.ts");
   assert.throws(() => createApp({ ...({} as Parameters<typeof createApp>[0]) }), /auth|currentUserId/);
+});
+
+test("interests over HTTP: add, edit, start (saved or drafting), remove; and only for the signed-in person", async (t) => {
+  const api = await startAuthApi();
+  t.after(() => api.close());
+  const b = api.browser();
+  await b.call("POST", "/api/auth/signup", ME);
+  assert.deepEqual((await b.call("GET", "/api/interests")).body, { interests: [] });
+  const made = await b.call("POST", "/api/interests", { company: "Stripe", url: "https://stripe.com/jobs/1" });
+  assert.equal(made.status, 201);
+  assert.equal((await b.call("POST", "/api/interests", { company: "" })).status, 400);
+  assert.equal((await b.call("POST", "/api/interests", { company: "X", url: "javascript:alert(1)" })).status, 400);
+  const id = made.body.id;
+  assert.equal((await b.call("PATCH", `/api/interests/${id}`, { note: "ask Sam" })).body.note, "ask Sam");
+  assert.equal((await b.call("PATCH", "/api/interests/999", { note: "x" })).status, 404);
+  const noRole = await b.call("POST", `/api/interests/${id}/start`, {});
+  assert.equal(noRole.status, 400);
+  const started = await b.call("POST", `/api/interests/${id}/start`, { roleTitle: "SWE Intern", status: "drafting" });
+  assert.deepEqual([started.status, started.body.application.status, started.body.application.url, started.body.application.notes], [201, "drafting", "https://stripe.com/jobs/1", "ask Sam"]);
+  assert.deepEqual((await b.call("GET", "/api/interests")).body, { interests: [] });
+  const other = await b.call("POST", "/api/interests", { company: "Ramp" });
+  assert.equal((await b.call("DELETE", `/api/interests/${other.body.id}`)).status, 204);
+  // someone else cannot see or touch it
+  const kept = await b.call("POST", "/api/interests", { company: "Mine" });
+  const b2 = api.browser();
+  await b2.call("POST", "/api/auth/signup", { ...ME, email: "two@example.com", name: "Two" });
+  assert.deepEqual((await b2.call("GET", "/api/interests")).body, { interests: [] });
+  assert.equal((await b2.call("DELETE", `/api/interests/${kept.body.id}`)).status, 404);
 });

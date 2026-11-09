@@ -55,6 +55,7 @@ test("deleting an account leaves no row of theirs in any table, and none of anyo
     db.prepare("INSERT INTO contact_import_records (user_id, source, external_id, contact_id, imported_at) VALUES (?, 's', 'e', ?, ?)").run(u, u * 10, NOW);
     db.prepare("INSERT INTO user_settings (user_id, key, value) VALUES (?, 'school', 'X')").run(u);
     db.prepare("INSERT INTO resume_versions (user_id, name, name_key, created_at) VALUES (?, 'R', 'r', ?)").run(u, NOW);
+    db.prepare("INSERT INTO interests (user_id, company, created_at, updated_at) VALUES (?, 'Co', ?, ?)").run(u, NOW, NOW);
     db.prepare("INSERT INTO sessions (token_hash, user_id, created_at, last_seen_at, expires_at) VALUES (?, ?, ?, ?, ?)").run(`h${u}`, u, NOW, NOW, NOW);
   };
   const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name <> 'schema_migrations'").all() as { name: string }[]).map((r) => r.name);

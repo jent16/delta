@@ -71,6 +71,7 @@ elsewhere.
 | `GET/PATCH /api/settings` | preferences: `school`, `program`, `gradYear`, `targetRoles`, `targetTerms` (blank clears it; no school means people searches look at the whole company) |
 | `GET/PATCH /api/profile` | your profile: `{profile, resumeVersions, unlisted}`; PATCH takes `name` and any of the settings above, all or nothing. The email is read-only |
 | `POST /api/resume-versions`, `PATCH/DELETE /api/resume-versions/:id` | the names of your resume versions (no files). Renaming renames the same text on your applications; removing leaves them alone |
+| `GET/POST /api/interests`, `PATCH/DELETE /api/interests/:id`, `POST /api/interests/:id/start` | the **Interested** tab: jobs you might apply to (company, optional role, link, note). `start` (`{status: "saved"\|"drafting", roleTitle?}`) turns one into a real application, carrying the link and note over, and removes it |
 | `GET /api/auth/state` | public: `{account, canSignUp, claimsExistingData}` |
 | `POST /api/auth/signup`, `/signin`, `/signout` | public. Sign-up (`{name, email, password}`) or sign-in sets an HttpOnly session cookie. Five wrong passwords lock an email for 15 minutes (429) |
 | `POST /api/auth/change-password`, `/delete-account` | `{current, next}` signs every other browser out; `{password}` deletes the account and all its data, after a `pre-delete-account` backup |

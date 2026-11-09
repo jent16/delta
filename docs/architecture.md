@@ -39,7 +39,7 @@ HTTP request
 ```
 
 Sign-in follows the same layers: `domain/auth.ts` and `domain/password.ts` (pure rules, hashing),
-`services/accounts.ts` (sign-up, sessions, profile), `repositories/users.ts` and `resume-versions.ts` (SQL),
+`services/accounts.ts` (sign-up, sessions, profile), `repositories/users.ts`, `resume-versions.ts` and `interests.ts` (SQL),
 and `api/app.ts`, where one check in front of `/api` turns a session cookie into the `userId` every
 service call already takes.
 

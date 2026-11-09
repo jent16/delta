@@ -508,3 +508,14 @@ broken into... You can still use it." The warning never blocks. It lives in the 
 (`web/lib/password-strength.js`, tested in `web-password.test.ts`), not on the server, because it is advice for
 the person choosing and not something the server needs to enforce. What still protects a weak password: the
 lock after five wrong tries (15 minutes per email) and scrypt hashing. Accounts made earlier keep working.
+
+## 45. "Interested" is its own small table, not a new stage
+Jobs you might apply to live in an `interests` table (company, optional role, link, note), shown on an
+**Interested** tab. They are deliberately *not* a status: a new first stage would have meant rebuilding the status
+list in the database and touching every screen, the stats and the lists, to hold things that are not applications
+yet (no role, maybe no real intent). **Start application** creates a real application through the normal
+application service (so the role is required, duplicates are refused and the history starts properly), carrying the
+link and note over and beginning in Saved or Drafting, and only then removes the interest, so a refusal loses
+nothing. Interests are in the account-deletion test and the JSON export. Separately, an application in Drafting
+shows its posting link in its own box at the top of the panel, and the New application dialog takes the link too.
+

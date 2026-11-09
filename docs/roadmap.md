@@ -67,6 +67,7 @@ with its own rebuildable `delta.db`.
 | 7 | Bring the old Delta in: "Save to tracker" from Find Openings; resume match shown on an application | **on hold**: the old Delta is kept as it is (untouched, never deployed) until it is decided whether it is still wanted (decision 43) |
 | 8 | Follow-up reminders (overdue list, daily digest) | planned |
 | 9a | Accounts: email + password sign-in, sessions, profile (school, goals, resume version names), delete account | done |
+| 9c | **Interested** tab (jobs you might apply to: link + note, "Start application" makes it real); a prominent "paste the job link" box for Drafting applications and in the New application dialog | done |
 | 9b | Hosting it: see [`hosting.md`](hosting.md) for the plan. Password reset waits for the login wireframe | planned |
 | - | Optional: CSV/XLSX import, weekly ingest, sponsorship filter | when wanted |
 

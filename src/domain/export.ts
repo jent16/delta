@@ -7,6 +7,7 @@
 import type { Application, StatusEvent } from "./application.ts";
 import type { CompanySummary } from "./company-record.ts";
 import type { Contact, ContactEvent, LinkedApplication } from "./contact.ts";
+import type { Interest } from "./interest.ts";
 import type { SavedList } from "./list.ts";
 
 export interface ExportedApplication {
@@ -25,11 +26,12 @@ export interface ExportedContact {
   links: LinkedApplication[];
 }
 
-export function buildJsonExport(exportedAt: string, rows: ExportedApplication[], lists: SavedList[], companies: CompanySummary[] = [], contacts: ExportedContact[] = []) {
+export function buildJsonExport(exportedAt: string, rows: ExportedApplication[], lists: SavedList[], companies: CompanySummary[] = [], contacts: ExportedContact[] = [], interests: Interest[] = []) {
   return {
     version: EXPORT_VERSION,
     exportedAt,
     companies: companies.map((c) => ({ id: c.id, name: c.name, sector: c.sector })),
+    interests: interests.map((i) => ({ id: i.id, company: i.company, roleTitle: i.roleTitle, url: i.url, note: i.note, createdAt: i.createdAt })),
     contacts: contacts.map(({ contact: p, events, links }) => ({
       id: p.id, name: p.name, companyId: p.companyId, company: p.company, title: p.title, email: p.email, linkedinUrl: p.linkedinUrl,
       relationship: p.relationship, notes: p.notes, followUpOn: p.followUpOn, createdAt: p.createdAt,

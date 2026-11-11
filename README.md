@@ -95,14 +95,19 @@ writes through the same API as everything else.
 - **Dashboard.** Sent / responses / interviews / offers, how far applications get
   (a funnel where skipping a stage still counts), what needs attention, applications
   sent per week, and a row per saved list.
+- **Interested.** Jobs you might apply to, before they are applications: paste the link to the
+  posting, add the company, an optional role and a note. "Start application" makes a real one
+  (Saved or Drafting) with the link and note carried over, and removes it from this list.
 - **Applications.** Your lists as tabs, status chips, search, sortable columns, a
   four-segment progress bar (the furthest stage ever reached, plus how it ended),
   a status menu that only offers legal moves, and bulk actions that change all of
   the selected applications or none.
 - **Detail panel.** The dated history, undo, the editable details (including
-  follow-up date and deadline, which feed Reminders), notes, archive.
+  follow-up date and deadline, which feed Reminders), notes, archive. While an application is in
+  Drafting, the link to the posting gets its own box at the top, saved the moment you paste it.
 - **New application.** A company box that suggests your own companies first, then a
-  directory, and forgives typos.
+  directory, and forgives typos. Optional fields for the link to the posting and the
+  application deadline.
 - **Companies.** Each company once, with its sector. Set Stripe to Fintech and every Stripe
   application follows. Rename fixes a spelling everywhere; "Merge into…" folds a duplicate
   (say "Stripe Inc") into the one you meant, moving its applications. A filter shows the
@@ -597,14 +602,6 @@ work is mostly recognition. The fit explanation is the part that benefits
 from a stronger model, so `RESUME_MODEL=claude-sonnet-5` is the first
 upgrade to try if the reasoning reads thin. Per-upload cost stays well
 under a cent either way.
-
-## CLI
-
-```bash
-python3 readiness.py            # student 1's courses vs every role
-python3 readiness.py 2          # a different student
-python3 program_readiness.py    # a whole curriculum vs every role
-```
 
 ## Data
 

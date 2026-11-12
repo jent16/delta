@@ -124,7 +124,7 @@ the irreplaceable data, and a backup is just "copy `var/`".
 
 ```bash
 npm run tracker        # http://localhost:3001   (data in ./var/tracker.db)
-npm test               # legacy tests + tracker tests
+npm test               # tracker tests + legacy tests (test:tracker / test:legacy run one half)
 npm run typecheck      # tsc --noEmit
 ```
 

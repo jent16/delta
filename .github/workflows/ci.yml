@@ -6,7 +6,29 @@ on:
   pull_request:
 
 jobs:
-  test:
+  # The tracker: the product. Needs Node only (no Python, no network, no API keys).
+  tracker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm audit --omit=dev --audit-level=high
+
+      - run: npm run typecheck
+
+      - run: npm run test:tracker
+
+  # The original Delta (parked, never deployed). Its tests build a SQLite file with python3 and run the real
+  # server against scripts/mock-api.js, so nothing here costs money or touches the network. Kept so the parked
+  # code stays working, but it can no longer slow down or fail the tracker's job.
+  legacy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,10 +44,4 @@ jobs:
 
       - run: npm ci
 
-      # No API keys anywhere in CI: the integration tests run the real server
-      # against scripts/mock-api.js (a stand-in for Claude and Notion), and
-      # the Simplify listings are stubbed, so nothing here costs money or
-      # touches the network.
-      - run: npm run typecheck
-
-      - run: npm test
+      - run: npm run test:legacy

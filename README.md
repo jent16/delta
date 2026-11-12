@@ -538,12 +538,18 @@ employers actually ask for.
 ## Tests
 
 ```bash
-npm test     # legacy + tracker tests, no API keys and no network
+npm test                # tracker + legacy tests, no API keys and no network
+npm run test:tracker    # just the tracker (Node only)
+npm run test:legacy     # just the original Delta (needs python3)
 npm run typecheck
 ```
 
-Node's built-in test runner (no extra dependencies); CI runs the same
-command on every push (`.github/workflows/ci.yml`).
+Node's built-in test runner (no extra dependencies). CI runs the tracker and
+the legacy tests as two separate jobs, plus `npm audit` for known
+vulnerabilities, on every push (`.github/workflows/ci.yml`).
+
+To keep the tracker running (restart on crash, start at login) and for the
+health check, see [`deploy/README.md`](deploy/README.md).
 
 - **Tracker** (`src/**/*.test.ts`) — the status state machine (every
   from/to pair), validation, saved lists, migrations, and the HTTP API, all

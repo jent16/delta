@@ -92,7 +92,7 @@ export function makeTracker(startAt = new Date(2026, 8, 15, 12, 0, 0), sources?:
 
 export async function startApi(userId = 1, sources?: SourceFactory, directory?: CompanyDirectory) {
   const t = makeTracker(undefined, sources, directory);
-  const app = createApp({ applications: t.service, lists: t.lists, imports: t.imports, exports: t.exports, companies: t.companies, contacts: t.contacts, settings: t.settings, linkedin: t.linkedin, insights: t.insights, profile: t.profile, interests: t.interests, currentUserId: () => userId });
+  const app = createApp({ applications: t.service, lists: t.lists, imports: t.imports, exports: t.exports, companies: t.companies, contacts: t.contacts, settings: t.settings, linkedin: t.linkedin, insights: t.insights, profile: t.profile, interests: t.interests, healthCheck: () => void t.db.prepare("select 1").get(), currentUserId: () => userId });
   const server = await new Promise<import("node:http").Server>((resolve) => {
     const s = app.listen(0, () => resolve(s));
   });
@@ -116,7 +116,7 @@ export async function startApi(userId = 1, sources?: SourceFactory, directory?: 
  */
 export async function startAuthApi(accountOptions: { allowSignup?: boolean; throttle?: LoginThrottle } = {}, secureCookies = false) {
   const t = makeTracker(undefined, undefined, undefined, accountOptions);
-  const app = createApp({ applications: t.service, lists: t.lists, imports: t.imports, exports: t.exports, companies: t.companies, contacts: t.contacts, settings: t.settings, linkedin: t.linkedin, insights: t.insights, profile: t.profile, interests: t.interests, auth: t.auth, secureCookies });
+  const app = createApp({ applications: t.service, lists: t.lists, imports: t.imports, exports: t.exports, companies: t.companies, contacts: t.contacts, settings: t.settings, linkedin: t.linkedin, insights: t.insights, profile: t.profile, interests: t.interests, healthCheck: () => void t.db.prepare("select 1").get(), auth: t.auth, secureCookies });
   const server = await new Promise<import("node:http").Server>((resolve) => {
     const s = app.listen(0, () => resolve(s));
   });

@@ -39,6 +39,11 @@ export interface AppDeps {
   currentUserId?: (req: Request) => number;
   /** Mark the session cookie Secure (browsers then send it only over https). Turn on when the server is reached over https. */
   secureCookies?: boolean;
+  /**
+   * Proves the database is usable; throws if not. Wired to a trivial query in production so `/api/health`
+   * can say 503 when the server is up but cannot reach its data. Omitted in tests that don't care.
+   */
+  healthCheck?: () => void;
   /** Folder of the web UI's static files (index.html, JS, CSS). Omitted in API-only tests. */
   webRoot?: string;
 }
@@ -191,7 +196,15 @@ export function createApp(deps: AppDeps) {
   // the closed lists and the status rules, so a client never keeps its own copy
   app.get("/api/vocab", (_req, res) => void res.json(describeVocabulary()));
 
-  app.get("/api/health", (_req, res) => void res.json({ ok: true }));
+  // Public and tiny on purpose: a process supervisor or hosting platform polls it. 200 only when the database answers.
+  app.get("/api/health", (_req, res) => {
+    try {
+      deps.healthCheck?.();
+      res.json({ ok: true });
+    } catch {
+      res.status(503).json({ ok: false, error: "database_unavailable" });
+    }
+  });
 
   app.post("/api/applications", (req, res) => {
     res.status(201).json(applications.add(currentUserId(req), req.body));

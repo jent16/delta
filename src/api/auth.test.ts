@@ -259,3 +259,16 @@ test("interests over HTTP: add, edit, start (saved or drafting), remove; and onl
   assert.deepEqual((await b2.call("GET", "/api/interests")).body, { interests: [] });
   assert.equal((await b2.call("DELETE", `/api/interests/${kept.body.id}`)).status, 404);
 });
+
+test("health: 200 while the database answers, 503 once it does not (and it stays public)", async (t) => {
+  const api = await startAuthApi();
+  t.after(() => api.close());
+  const b = api.browser();
+  const ok = await b.call("GET", "/api/health");
+  assert.equal(ok.status, 200);
+  assert.deepEqual(ok.body, { ok: true });
+  api.db.close();
+  const down = await b.call("GET", "/api/health");
+  assert.equal(down.status, 503);
+  assert.deepEqual(down.body, { ok: false, error: "database_unavailable" });
+});

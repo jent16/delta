@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Keeps the tracker running on a Mac: starts at login, restarts it if it crashes.
+  A template: nothing installs it for you. See deploy/README.md.
+  Replace /ABSOLUTE/PATH/TO/delta with this folder and /ABSOLUTE/PATH/TO/node with the output of `which node`.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.delta.tracker</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/ABSOLUTE/PATH/TO/node</string>
+    <string>src/main.ts</string>
+  </array>
+  <key>WorkingDirectory</key><string>/ABSOLUTE/PATH/TO/delta</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>StandardOutPath</key><string>/ABSOLUTE/PATH/TO/delta/var/tracker.log</string>
+  <key>StandardErrorPath</key><string>/ABSOLUTE/PATH/TO/delta/var/tracker.log</string>
+</dict>
+</plist>

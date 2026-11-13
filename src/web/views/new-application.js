@@ -22,9 +22,9 @@ export function openNewApplication() {
   const error = h("div", { class: "err", id: "company-err", role: "alert", hidden: true });
   const hint = h("span", { class: "hint", id: "company-hint", text: "Your own companies come first, then a directory of companies that post internships. Typos still find the right one." });
   const list = h("ul", { class: "list", role: "listbox", id: "company-list", hidden: true });
-  const company = h("input", { id: "f-company", type: "text", role: "combobox", "aria-expanded": "false", "aria-controls": "company-list", "aria-autocomplete": "list", placeholder: "Start typing a company", autocomplete: "off" });
-  const role = h("input", { id: "f-role", type: "text", placeholder: "e.g. SWE Intern" });
-  const posting = h("input", { id: "f-url", type: "url", placeholder: "Paste the link to the job posting (optional)", autocomplete: "off", spellcheck: "false" });
+  const company = h("input", { id: "f-company", type: "text", role: "combobox", "aria-expanded": "false", "aria-controls": "company-list", "aria-autocomplete": "list", placeholder: "Start typing a company", autocomplete: "off", "aria-required": "true" });
+  const role = h("input", { id: "f-role", type: "text", placeholder: "e.g. SWE Intern", "aria-required": "true" });
+  const posting = h("input", { id: "f-url", type: "url", placeholder: "Paste the link to the job posting", autocomplete: "off", spellcheck: "false" });
   const term = h("input", { id: "f-term", type: "text", placeholder: "e.g. Summer 2027" });
   const fn = h("select", { id: "f-fn" }, vocab.roleFunctions.map((f) => h("option", { value: f, text: f })));
   const sector = h("select", { id: "f-sector" }, h("option", { value: "", text: "Not sure yet" }), vocab.sectors.map((s) => h("option", { value: s, text: s })));
@@ -107,7 +107,8 @@ export function openNewApplication() {
   });
 
   const showError = (message, openId) => {
-    clear(error).append(message, openId ? h("button", { class: "linkish", type: "button", text: " Open it", onclick: () => { closeOverlays(); ctx.openApplication(openId); } }) : null);
+    clear(error).append(message); // (append(null) would print the word "null", so the button is added only when there is one)
+    if (openId) error.append(h("button", { class: "linkish", type: "button", text: " Open it", onclick: () => { closeOverlays(); ctx.openApplication(openId); } }));
     error.hidden = false;
   };
 
@@ -140,17 +141,21 @@ export function openNewApplication() {
     }
   }
 
+  // Only the two things the form insists on carry a mark (a small dot). Everything below the "Details" line can be skipped.
+  const required = (text, id) => h("label", { for: id }, text, h("span", { class: "req", "aria-hidden": "true" }));
   const close = h("button", { class: "btn small", type: "button", "aria-label": "Close", onclick: closeOverlays }, icon("x", 14), "Close");
   modal.append(
     h("header", {}, h("h2", { text: "New application" }), close),
     h("form", { class: "form", onsubmit: onSubmit },
-      h("div", { class: "field" }, h("label", { for: "f-company", text: "Company" }), h("div", { class: "combo" }, company, list), error, hint),
-      h("div", { class: "field" }, h("label", { for: "f-role", text: "Role" }), role),
+      h("p", { class: "form-lead", text: "Company and role are all you need. The rest can wait." }),
+      h("div", { class: "field" }, required("Company", "f-company"), h("div", { class: "combo" }, company, list), error, hint),
+      h("div", { class: "field" }, required("Role", "f-role"), role),
+      h("div", { class: "form-divider", "aria-hidden": "true" }, h("span", { text: "Details" })),
       h("div", { class: "field" }, h("label", { for: "f-url", text: "Job posting link" }), posting),
       h("div", { class: "row2" }, h("div", { class: "field" }, h("label", { for: "f-fn", text: "Function" }), fn), h("div", { class: "field" }, h("label", { for: "f-sector", text: "Sector" }), sector, sectorNote)),
-      h("div", { class: "row2" }, h("div", { class: "field" }, h("label", { for: "f-status", text: "Status" }), status), h("div", { class: "field" }, h("label", { for: "f-deadline", text: "Application deadline (optional)" }), deadline)),
+      h("div", { class: "row2" }, h("div", { class: "field" }, h("label", { for: "f-status", text: "Status" }), status), h("div", { class: "field" }, h("label", { for: "f-deadline", text: "Application deadline" }), deadline)),
       appliedField,
-      h("div", { class: "row2" }, h("div", { class: "field" }, h("label", { for: "f-loc", text: "Location" }), location), h("div", { class: "field" }, h("label", { for: "f-term", text: "Term (optional)" }), term)),
+      h("div", { class: "row2" }, h("div", { class: "field" }, h("label", { for: "f-loc", text: "Location" }), location), h("div", { class: "field" }, h("label", { for: "f-term", text: "Term" }), term)),
       h("div", { class: "form-actions" }, h("button", { class: "btn", type: "button", onclick: closeOverlays, text: "Cancel" }), submit)));
   openOverlay(modal, company);
 }

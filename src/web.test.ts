@@ -168,3 +168,10 @@ test("links to other sites are made in exactly one place, which checks the addre
   assert.match(ui, /!u\.username && !u\.password/);
   assert.match(ui, /hostname === "linkedin\.com"|host === "linkedin\.com"/);
 });
+
+test("New application marks what is required (a dot, and aria-required) instead of labelling the rest '(optional)'", () => {
+  const src = read(join(WEB, "views", "new-application.js"));
+  assert.doesNotMatch(src, /\(optional\)/i);
+  assert.equal(src.match(/"aria-required": "true"/g)?.length, 2, "exactly company and role are required");
+  assert.match(src, /Company and role are all you need/);
+});

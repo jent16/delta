@@ -86,7 +86,8 @@ export function createImportService(deps: {
 
       const known = imported.get(row.externalId);
       if (known !== undefined) {
-        planned.push({ item: { ...base, action: "already_imported", applicationId: known, reason: `already imported as application #${known}` } });
+        // a null id means you imported it and later deleted the application: it stays skipped, never brought back
+        planned.push({ item: { ...base, action: "already_imported", ...(known === null ? {} : { applicationId: known }), reason: known === null ? "already imported, and you have since deleted it" : `already imported as application #${known}` } });
         continue;
       }
 

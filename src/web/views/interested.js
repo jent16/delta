@@ -2,9 +2,11 @@
 // ready, "Start application" turns it into a real one (Saved or Drafting) with the link and note carried over.
 
 import { api, describeError } from "../lib/api.js";
-import { clear, h } from "../lib/dom.js";
+import { clear, h, icon } from "../lib/dom.js";
+import { nameList, renderBulkBar } from "../lib/bulk.js";
 import { confirmDialog } from "../lib/confirm.js";
 import { plural } from "../lib/format.js";
+import { state } from "../lib/state.js";
 import { emptyNote, externalLink, logo, openMenu, toast } from "../lib/ui.js";
 
 const anyHost = () => true;
@@ -14,11 +16,52 @@ export async function interestedView() {
   const count = h("span", { class: "muted" });
   const list = h("div", { class: "int-list" });
 
+  // ---- ticking cards, and removing several at once ----
+  const boxes = new Map(); // id -> that card's checkbox
+  const selectAll = h("input", { type: "checkbox", "aria-label": "Select all", onchange: (e) => {
+    for (const i of items) { if (e.target.checked) state.selected.add(i.id); else state.selected.delete(i.id); }
+    syncBar();
+  } });
+  const selectRow = h("label", { class: "int-selectall" }, selectAll, "Select all");
+  const pick = { has: (id) => state.selected.has(id), set: (id, on) => { if (on) state.selected.add(id); else state.selected.delete(id); syncBar(); }, register: (id, box) => boxes.set(id, box) };
+  const syncBar = () => {
+    for (const id of [...state.selected]) if (!items.some((i) => i.id === id)) state.selected.delete(id); // one that was just removed
+    for (const [id, box] of boxes) box.checked = state.selected.has(id);
+    selectAll.checked = items.length > 0 && items.every((i) => state.selected.has(i.id));
+    renderBulkBar({
+      count: state.view === "interested" ? state.selected.size : 0,
+      onClear: () => { state.selected.clear(); syncBar(); },
+      buttons: [h("button", { class: "btn small", type: "button", onclick: confirmRemoveSelected }, icon("trash", 14), "Remove")],
+    });
+  };
+  const confirmRemoveSelected = () => {
+    const picked = items.filter((i) => state.selected.has(i.id));
+    if (!picked.length) return;
+    confirmDialog({
+      title: `Remove ${plural(picked.length, "job")}?`,
+      body: [nameList(picked.map((i) => i.company), 4), "This removes them from Interested, along with their notes. It can't be undone."],
+      confirmLabel: `Remove ${plural(picked.length, "job")}`, danger: true,
+      onConfirm: async () => {
+        try {
+          const r = await api.deleteInterests(picked.map((i) => i.id));
+          const gone = new Set(picked.map((i) => i.id));
+          items = items.filter((i) => !gone.has(i.id));
+          for (const id of gone) state.selected.delete(id);
+          paint();
+          toast(`${plural(r.removed, "job")} removed`);
+        } catch (e) { toast(describeError(e), true); }
+      },
+    });
+  };
+
   const paint = () => {
     count.textContent = plural(items.length, "job");
     clear(list);
+    boxes.clear();
+    selectRow.hidden = items.length === 0;
     if (!items.length) list.append(emptyNote("Nothing here yet. When you spot a job you might apply to, paste its link above."));
-    for (const item of items) list.append(card(item, { remove: removeFromList, replace }));
+    for (const item of items) list.append(card(item, { remove: removeFromList, replace, pick }));
+    syncBar();
   };
   const removeFromList = (id) => { items = items.filter((i) => i.id !== id); paint(); };
   const replace = (updated) => { items = items.map((i) => (i.id === updated.id ? updated : i)); };
@@ -55,10 +98,11 @@ export async function interestedView() {
     h("div", { class: "head" }, h("div", {}, h("h1", { class: "title", text: "Interested" }), count)),
     h("p", { class: "note-line", text: "Jobs you might apply to. Paste the link, add a note if you like, and press Start application when you are ready: it becomes a real application with the link and note carried over." }),
     h("section", { class: "panel" }, form),
+    selectRow,
     list);
 }
 
-function card(item, { remove, replace }) {
+function card(item, { remove, replace, pick }) {
   const stored = { ...item }; // what the server last confirmed, so a failed save can put it back
   const save = (key, input) => async () => {
     const value = input.value.trim();
@@ -109,13 +153,16 @@ function card(item, { remove, replace }) {
       { label: "Drafting (writing answers)", run: () => start("drafting") },
     ]);
   });
+  const tick = h("input", { type: "checkbox", class: "int-tick", "aria-label": `Select ${item.company}`, onchange: (e) => pick.set(item.id, e.target.checked) });
+  tick.checked = pick.has(item.id);
+  pick.register(item.id, tick);
   const del = h("button", { class: "btn small", type: "button", text: "Remove", onclick: () => confirmDialog({
     title: `Remove ${stored.company}?`, body: ["This removes it from Interested, along with its note. It can't be undone."], confirmLabel: "Remove", danger: true,
     onConfirm: async () => { try { await api.removeInterest(item.id); remove(item.id); toast("Removed"); } catch (e) { toast(describeError(e), true); } },
   }) });
 
   return h("section", { class: "panel int-card" },
-    h("div", { class: "int-top" }, logo(item.company), company, openRow),
+    h("div", { class: "int-top" }, tick, logo(item.company), company, openRow),
     h("div", { class: "field" }, h("label", { for: url.id, text: "Job posting link" }), url),
     h("div", { class: "field" }, h("label", { for: role.id, text: "Role" }), role),
     note, problem,

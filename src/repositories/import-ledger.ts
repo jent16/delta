@@ -6,7 +6,7 @@ export function createImportLedger(db: Db): ImportLedger {
     known(userId, source) {
       const rows = db
         .prepare("SELECT external_id, application_id FROM import_records WHERE user_id = ? AND source = ?")
-        .all(userId, source) as { external_id: string; application_id: number }[];
+        .all(userId, source) as { external_id: string; application_id: number | null }[];
       return new Map(rows.map((r) => [r.external_id, r.application_id]));
     },
     record(userId, source, externalId, applicationId, now) {

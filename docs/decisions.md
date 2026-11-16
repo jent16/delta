@@ -72,6 +72,8 @@ couldn't be deployed publicly).
 Your application history is rarely something you want gone. `DELETE` sets
 `archived_at`; archived rows are hidden by default and recoverable. An archived
 application doesn't block re-adding the same one.
+*Amended by decision 46:* archiving is still how you take one out of your lists; there is now also an explicit,
+confirmed **Delete** for when you really want it gone.
 
 ## 10. Reject unknown fields
 `{"compny": "Stripe"}` is a 400, not a silently dropped value. Importers will
@@ -519,3 +521,19 @@ link and note over and beginning in Saved or Drafting, and only then removes the
 nothing. Interests are in the account-deletion test and the JSON export. Separately, an application in Drafting
 shows its posting link in its own box at the top of the panel, and the New application dialog takes the link too.
 
+## 46. Delete means delete, behind a confirmation, and the Notion ledger remembers
+Archive stays (it hides an application and keeps everything), and there is now a separate, explicit **Delete** that
+removes the data: on an application's panel, from the tick boxes on Applications, Companies and Interested, and on
+each company row. Every delete asks first, names what will go, starts with focus on Cancel, and is **all or nothing**
+(`POST .../bulk/delete` with `{ids}`: one id that is not yours is a 404 and nothing changes; at most 500 at once).
+- **An application** goes with its status history and its links to people (cascades). The people stay.
+- **A company** goes with *every* application at it, archived ones included, because an application cannot exist
+  without a company. People at that company stay and simply lose the company. The dialog says how many
+  applications (and how many archived) will go.
+- **The import ledger outlives the application** (migration 0011: `import_records.application_id` is nullable and set
+  to NULL on delete, as contact imports already did). Decision 18's promise, "a remembered row is never read again",
+  therefore still holds: deleting an imported application does not let a later Notion import bring it back.
+- There is no undo. The safety nets are the confirmation, the pre-migration and 12-hourly backups, and Archive as the
+  gentler choice, which the dialogs point to.
+*Alternative:* a trash can with restore. Rejected for now: it means a second "deleted" state everywhere a list or a
+count is computed. Worth revisiting if people delete by accident.

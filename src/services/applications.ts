@@ -11,6 +11,7 @@ import { dedupeKey, parseApplicationPatch, parseBulkEdit, parseBulkStatusChange,
 import type { Application, StatusEvent } from "../domain/application.ts";
 import { toIsoDate } from "../domain/dates.ts";
 import { DuplicateError, InvalidTransitionError, NotFoundError, ValidationError } from "../domain/errors.ts";
+import { parseIdList } from "../domain/ids.ts";
 import type { ApplicationRepository } from "../domain/ports.ts";
 import { computeProgress } from "../domain/progress.ts";
 import type { Progress } from "../domain/progress.ts";
@@ -26,6 +27,8 @@ export interface ApplicationService {
   changeStatus(userId: number, id: number, raw: unknown): Application;
   undoStatusChange(userId: number, id: number): Application;
   archive(userId: number, id: number): void;
+  /** Permanently deletes these applications (all of them or none: an id that is not yours changes nothing). */
+  removeMany(userId: number, raw: unknown): { removed: number };
   /** Moves many applications to one status. Refuses unless EVERY one may legally make that move; then changes all or none. */
   changeStatusMany(userId: number, raw: unknown): { updated: number; applications: Application[] };
   /** Changes the same safe fields on many applications, all or nothing. */
@@ -99,6 +102,13 @@ export function createApplicationService(deps: { repo: ApplicationRepository; cl
     archive(userId, id) {
       mustFind(userId, id);
       repo.archive(userId, id, now());
+    },
+
+    removeMany(userId, raw) {
+      const ids = parseIdList(raw, "application");
+      const missing = ids.filter((id) => !repo.findById(userId, id));
+      if (missing.length) throw new NotFoundError(`application(s) ${missing.join(", ")}`);
+      return { removed: repo.removeMany(userId, ids) };
     },
 
     changeStatusMany(userId, raw) {

@@ -302,6 +302,12 @@ export function createApplicationRepository(db: Db): ApplicationRepository {
       })();
     },
 
+    removeMany(userId, ids) {
+      if (!ids.length) return 0;
+      // the status history and the person links go with the rows (ON DELETE CASCADE); the Notion ledger keeps its rows (SET NULL)
+      return db.prepare(`DELETE FROM applications WHERE user_id = ? AND id IN (${ids.map(() => "?").join(", ")})`).run(userId, ...ids).changes;
+    },
+
     archive(userId, id, now) {
       const res = db.prepare("UPDATE applications SET archived_at = ?, updated_at = ? WHERE id = ? AND user_id = ? AND archived_at IS NULL").run(now, now, id, userId);
       return res.changes > 0;

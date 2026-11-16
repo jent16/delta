@@ -7,6 +7,7 @@ import { guessSector } from "../domain/company-hints.ts";
 import { parseCompanyPatch, parseMerge } from "../domain/company-record.ts";
 import type { CompanySummary } from "../domain/company-record.ts";
 import { CompanyExistsError, NotFoundError, ValidationError } from "../domain/errors.ts";
+import { parseIdList } from "../domain/ids.ts";
 import type { CompanyDirectory, CompanyRepository } from "../domain/ports.ts";
 import type { Sector } from "../domain/vocab.ts";
 import type { Clock } from "./applications.ts";
@@ -26,6 +27,11 @@ export interface CompanyService {
   edit(userId: number, id: number, raw: unknown): CompanySummary;
   /** Move every application of company `id` into `{ into }` and remove `id`. Refused if it would create duplicates. */
   merge(userId: number, id: number, raw: unknown): { company: CompanySummary; moved: number };
+  /**
+   * Permanently deletes these companies and every application at them (archived ones too). People you know there are
+   * kept. All of them or none: an id that is not yours changes nothing.
+   */
+  removeMany(userId: number, raw: unknown): { removed: number; applications: number };
 }
 
 export function createCompanyService(deps: { companies: CompanyRepository; directory: CompanyDirectory; clock: Clock }): CompanyService {
@@ -84,6 +90,14 @@ export function createCompanyService(deps: { companies: CompanyRepository; direc
         throw new ValidationError([{ field: "into", message: `${target.name} already has: ${conflicts.join(", ")}. Archive or rename those first, then merge ${from.name}` }]);
       }
       return companies.merge(userId, id, into, now()) as { company: CompanySummary; moved: number };
+    },
+
+    removeMany(userId, raw) {
+      const ids = parseIdList(raw, "company");
+      const missing = ids.filter((id) => !companies.findById(userId, id));
+      if (missing.length) throw new NotFoundError(`company(s) ${missing.join(", ")}`);
+      const r = companies.removeMany(userId, ids, now());
+      return { removed: r.companies, applications: r.applications };
     },
   };
 }

@@ -6,6 +6,7 @@ import { $, clear, h, icon } from "./lib/dom.js";
 import { ctx } from "./lib/ctx.js";
 import { crossfade, placeKnobs, reduced, reveal, revealColor, staggerIn } from "./lib/motion.js";
 import { DURATION, STAGGER } from "./lib/motion-math.js";
+import { hideBulk } from "./lib/bulk.js";
 import { closeOverlays, overlayIsOpen } from "./lib/overlay.js";
 import { resetState, setVocab, state } from "./lib/state.js";
 import { applyLook, DESIGNS, look, MODES, setLook } from "./lib/theme.js";
@@ -69,6 +70,7 @@ async function refreshBadge() {
 }
 
 // ---------- screens ----------
+const BULK_VIEWS = new Set(["applications", "companies", "interested"]); // the screens with tick boxes
 // mode: "none"  a refresh after a change: swap in place, no animation (it would flicker)
 //       "swap"  a tab change within a screen: old and new overlap briefly
 //       "enter" a different screen: old and new overlap, and the new content arrives piece by piece
@@ -78,6 +80,7 @@ async function render(mode = "none") {
   placeKnobs($("#topbar"));
   const container = $("#view");
   if (state.view !== "applications") leaveApplications();
+  if (!BULK_VIEWS.has(state.view)) hideBulk(); // the floating bar belongs to the screens that have ticks
   if (state.view !== "companies") companiesLeave();
   if (state.view !== "people") peopleLeave();
   if (!container.firstChild) showMessage(container, "Loading…");

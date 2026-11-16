@@ -1,4 +1,5 @@
 import { NotFoundError, ValidationError } from "../domain/errors.ts";
+import { parseIdList } from "../domain/ids.ts";
 import type { Interest } from "../domain/interest.ts";
 import { parseInterestPatch, parseNewInterest, parseStart } from "../domain/interest.ts";
 import type { Application } from "../domain/application.ts";
@@ -10,6 +11,8 @@ export interface InterestService {
   add(userId: number, raw: unknown): Interest;
   edit(userId: number, id: number, raw: unknown): Interest;
   remove(userId: number, id: number): void;
+  /** Removes these (all of them or none: an id that is not yours changes nothing). */
+  removeMany(userId: number, raw: unknown): { removed: number };
   /**
    * Turns an interest into a real application (stage "saved" or "drafting"), carrying over the company, role, link and
    * note, then removes the interest. It goes through the normal application service, so every usual rule applies
@@ -37,6 +40,12 @@ export function createInterestService(deps: { interests: InterestRepository; app
     remove(userId, id) {
       mustFind(userId, id);
       interests.remove(userId, id);
+    },
+    removeMany(userId, raw) {
+      const ids = parseIdList(raw, "interest");
+      const missing = ids.filter((id) => !interests.findById(userId, id));
+      if (missing.length) throw new NotFoundError(`interest(s) ${missing.join(", ")}`);
+      return { removed: interests.removeMany(userId, ids) };
     },
     start(userId, id, raw) {
       const interest = mustFind(userId, id);

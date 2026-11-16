@@ -12,6 +12,7 @@ test("signed out: every data route is 401; only health, vocab and the sign-in ro
   assert.equal((await b.call("GET", "/api/vocab")).status, 200);
   for (const [method, path] of [["GET", "/api/applications"], ["GET", "/api/contacts"], ["GET", "/api/companies"], ["GET", "/api/lists"], ["GET", "/api/stats"], ["GET", "/api/export"], ["GET", "/api/export.csv"],
     ["GET", "/api/settings"], ["GET", "/api/profile"], ["GET", "/api/interests"], ["POST", "/api/interests"], ["POST", "/api/applications"], ["POST", "/api/import/linkedin/preview"], ["POST", "/api/auth/change-password"], ["POST", "/api/auth/delete-account"],
+    ["POST", "/api/applications/bulk/delete"], ["POST", "/api/companies/bulk/delete"], ["POST", "/api/interests/bulk/delete"],
     ["GET", "/api/reminders"], ["GET", "/api/pipeline"], ["GET", "/api/breakdowns"], ["POST", "/api/resume-versions"]] as const) {
     const r = await b.call(method, path, method === "POST" ? {} : undefined);
     assert.equal(r.status, 401, `${method} ${path}`);
@@ -271,4 +272,27 @@ test("health: 200 while the database answers, 503 once it does not (and it stays
   const down = await b.call("GET", "/api/health");
   assert.equal(down.status, 503);
   assert.deepEqual(down.body, { ok: false, error: "database_unavailable" });
+});
+
+test("one person's delete requests can never reach another person's data", async (t) => {
+  const api = await startAuthApi();
+  t.after(() => api.close());
+  const alice = api.browser();
+  await alice.call("POST", "/api/auth/signup", ME);
+  const app = (await alice.call("POST", "/api/applications", { company: "Stripe", roleTitle: "SWE" })).body;
+  const company = (await alice.call("GET", "/api/companies")).body.companies[0];
+  const interest = (await alice.call("POST", "/api/interests", { company: "Ramp" })).body;
+
+  const bob = api.browser();
+  assert.equal((await bob.call("POST", "/api/auth/signup", { name: "Bob", email: "bob@example.com", password: "another long one" })).status, 201);
+  for (const [path, ids] of [["/api/applications/bulk/delete", [app.id]], ["/api/companies/bulk/delete", [company.id]], ["/api/interests/bulk/delete", [interest.id]]] as const) {
+    assert.equal((await bob.call("POST", path, { ids })).status, 404, path);
+  }
+  // and a request from another site is refused before it gets that far
+  const foreign = await alice.call("POST", "/api/applications/bulk/delete", { ids: [app.id] }, { origin: "https://evil.example" });
+  assert.equal(foreign.status, 403);
+
+  assert.equal((await alice.call("GET", "/api/applications")).body.applications.length, 1);
+  assert.equal((await alice.call("GET", "/api/companies")).body.companies.length, 1);
+  assert.equal((await alice.call("GET", "/api/interests")).body.interests.length, 1);
 });

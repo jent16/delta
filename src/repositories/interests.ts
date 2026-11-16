@@ -27,5 +27,6 @@ export function createInterestRepository(db: Db): InterestRepository {
       return info.changes ? findById(userId, id) : null;
     },
     remove: (userId, id) => db.prepare("DELETE FROM interests WHERE user_id = ? AND id = ?").run(userId, id).changes > 0,
+    removeMany: (userId, ids) => (ids.length ? db.prepare(`DELETE FROM interests WHERE user_id = ? AND id IN (${ids.map(() => "?").join(", ")})`).run(userId, ...ids).changes : 0),
   };
 }

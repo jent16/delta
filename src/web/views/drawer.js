@@ -4,6 +4,7 @@
 
 import { api, describeError } from "../lib/api.js";
 import { $, clear, h, icon } from "../lib/dom.js";
+import { confirmDialog } from "../lib/confirm.js";
 import { ctx } from "../lib/ctx.js";
 import { shortDate } from "../lib/format.js";
 import { attachDrag } from "../lib/drag.js";
@@ -122,6 +123,25 @@ function draw({ application: a, events, progress }, from) {
     } catch (e) { toast(describeError(e), true); }
   };
 
+  // Archive keeps it (out of the lists); Delete removes it for good, so it asks first and says what goes with it.
+  const remove = () => confirmDialog({
+    title: `Delete ${a.company}?`,
+    body: [
+      `${a.company}, ${a.roleTitle}`,
+      "This permanently deletes the application, its status history and its notes, and unlinks the people you connected to it. This can't be undone.",
+      "If you only want it out of your lists, press Archive instead: your data is kept.",
+    ],
+    confirmLabel: "Delete application", danger: true,
+    onConfirm: async () => {
+      try {
+        await api.deleteApplications([a.id]);
+        closeOverlays();
+        toast(`${a.company} deleted`);
+        await ctx.refresh();
+      } catch (e) { toast(describeError(e), true); }
+    },
+  });
+
   const peopleBox = h("div", { class: "people-box" }, h("p", { class: "muted", text: "Loading…" }));
   fillPeople(a, peopleBox);
   const close = h("button", { class: "btn small closebtn", type: "button", "aria-label": "Close details", onclick: closeOverlays }, icon("x", 14), "Close");
@@ -137,7 +157,9 @@ function draw({ application: a, events, progress }, from) {
     h("div", { class: "sect" }, h("h3", { text: "History" }), timeline),
     h("div", { class: "sect" }, h("h3", { text: "People" }), peopleBox),
     h("div", { class: "sect" }, h("h3", { text: "Notes" }), notes),
-    h("div", { class: "sect" }, h("button", { class: "btn small", type: "button", text: "Archive", onclick: archive })));
+    h("div", { class: "sect row-actions" },
+      h("button", { class: "btn small", type: "button", text: "Archive", onclick: archive }),
+      h("button", { class: "btn small danger-outline", type: "button", onclick: remove }, icon("trash", 14), "Delete")));
 
   const wasOpen = !drawer.hidden && drawer._leaving == null;
   const scrolled = drawer.querySelector(".drawer-body")?.scrollTop ?? 0;

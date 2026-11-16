@@ -67,3 +67,19 @@ test("the data export includes interests, only the person's own", () => {
   t.interests.add(2, { company: "Theirs" });
   assert.deepEqual(t.exports.json(1).body.interests.map((i) => [i.company, i.url, i.note]), [["Stripe", "https://stripe.com/jobs/1", "n"]]);
 });
+
+test("removing several interests at once is all or nothing and only ever touches your own", () => {
+  const t = makeTracker();
+  t.db.prepare("INSERT INTO users (id, name, created_at) VALUES (2, 'B', 't')").run();
+  const a = t.interests.add(1, { company: "Stripe" });
+  const b = t.interests.add(1, { company: "Ramp" });
+  const c = t.interests.add(1, { company: "Figma" });
+  const theirs = t.interests.add(2, { company: "Other" });
+  assert.throws(() => t.interests.removeMany(1, { ids: [a.id, theirs.id] }), NotFoundError);
+  assert.equal(t.interests.list(1).length, 3);
+  assert.deepEqual(t.interests.removeMany(1, { ids: [a.id, b.id] }), { removed: 2 });
+  assert.deepEqual(t.interests.list(1).map((i) => i.company), ["Figma"]);
+  assert.equal(t.interests.list(2).length, 1);
+  assert.throws(() => t.interests.removeMany(1, { ids: [] }), ValidationError);
+  void c;
+});

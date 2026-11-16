@@ -3,11 +3,12 @@
 // in the browser, so typing in the search box is instant.
 
 import { api, describeError } from "../lib/api.js";
-import { $, clear, h, icon } from "../lib/dom.js";
+import { clear, h, icon } from "../lib/dom.js";
 import { ctx } from "../lib/ctx.js";
 import { ago, plural, shortDate, today } from "../lib/format.js";
-import { cancelMotion, crossfadeIcon, hideWith, slideIn, slideOut } from "../lib/motion.js";
-import { DURATION } from "../lib/motion-math.js";
+import { crossfadeIcon } from "../lib/motion.js";
+import { nameList, renderBulkBar } from "../lib/bulk.js";
+import { confirmDialog } from "../lib/confirm.js";
 import { label, movesFrom, state, vocab } from "../lib/state.js";
 import { chip, emptyNote, logo, openMenu, progressBar, toast } from "../lib/ui.js";
 import { table, toolbar } from "./toolbar.js";
@@ -82,7 +83,6 @@ export async function applicationsView() {
 export function leaveApplications() {
   table.rerender = null;
   table.view = null;
-  hideBulk();
 }
 
 // ---------- the table ----------
@@ -201,20 +201,37 @@ function bulkSector(anchor) {
   } })));
 }
 
-export function hideBulk() { const el = $("#bulk"); cancelMotion(el); el.hidden = true; clear(el); }
+function bulkDelete() {
+  const picked = [...state.selected].map(byId).filter(Boolean);
+  if (!picked.length) return;
+  confirmDialog({
+    title: `Delete ${plural(picked.length, "application")}?`,
+    body: [
+      nameList(picked.map((a) => `${a.company} (${a.roleTitle})`), 4),
+      "This permanently deletes them, with their status history and notes, and unlinks the people you connected to them. This can't be undone.",
+      "To just take them out of your lists, open one and press Archive instead.",
+    ],
+    confirmLabel: `Delete ${plural(picked.length, "application")}`, danger: true,
+    onConfirm: async () => {
+      try {
+        const r = await api.deleteApplications(picked.map((a) => a.id));
+        state.selected.clear();
+        toast(`${plural(r.removed, "application")} deleted`);
+        await ctx.refresh();
+      } catch (e) { toast(describeError(e), true); }
+    },
+  });
+}
 
 function renderBulk() {
-  const el = $("#bulk");
-  if (state.view !== "applications" || !state.selected.size) {
-    // it sinks away (20% quicker than it rose) and is then really hidden
-    if (!el.hidden && el._leaving == null) hideWith(el, () => slideOut(el, { y: 16, duration: DURATION.toast }));
-    return;
-  }
-  clear(el);
-  el.className = "bulk";
-  el.append(h("b", { text: `${state.selected.size} selected` }),
-    h("button", { class: "btn small", type: "button", onclick: (e) => { e.stopPropagation(); bulkSector(e.currentTarget); } }, "Set sector", icon("down", 13)),
-    h("button", { class: "btn small", type: "button", onclick: bulkGhost, text: "Mark ghosted" }),
-    h("button", { class: "iconbtn", type: "button", "aria-label": "Clear selection", onclick: () => { state.selected.clear(); syncSelection(); renderBulk(); } }, icon("x", 15)));
-  if (el.hidden || el._leaving != null) { cancelMotion(el); el.hidden = false; slideIn(el, { y: 16, duration: DURATION.toast }); }
+  const visible = state.view === "applications";
+  renderBulkBar({
+    count: visible ? state.selected.size : 0,
+    onClear: () => { state.selected.clear(); syncSelection(); renderBulk(); },
+    buttons: [
+      h("button", { class: "btn small", type: "button", onclick: (e) => { e.stopPropagation(); bulkSector(e.currentTarget); } }, "Set sector", icon("down", 13)),
+      h("button", { class: "btn small", type: "button", onclick: bulkGhost, text: "Mark ghosted" }),
+      h("button", { class: "btn small", type: "button", onclick: bulkDelete }, icon("trash", 14), "Delete"),
+    ],
+  });
 }

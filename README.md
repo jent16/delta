@@ -51,6 +51,7 @@ elsewhere.
 | `POST /api/applications/:id/status` | move through the pipeline (`{status, on?, note?}`) |
 | `POST /api/applications/:id/status/undo` | undo the last status change |
 | `DELETE /api/applications/:id` | archive (recoverable) |
+| `POST /api/applications/bulk/delete` | `{ids}`: **permanently** delete (history and person links go too; the people stay). All or nothing, at most 500 |
 | `GET /api/lists` | your saved filters, each with a live `count` (starters: SWE, PM, Fintech-adjacent) |
 | `POST /api/lists` | create one: `{name, filter: {statuses?, roleFunctions?, sectors?, includeArchived?}}` |
 | `GET /api/lists/:id/applications` | run the list; narrow it with `status`, `function`, `sector`, `q` |
@@ -61,6 +62,7 @@ elsewhere.
 | `GET /api/companies/search?q=` | type-ahead for quick-add: your own companies first, then Simplify's list, with "did you mean" for typos and a sector hint |
 | `GET /api/companies` | your companies, each with its sector and how many applications point at it |
 | `PATCH /api/companies/:id` | rename and/or set the sector (`{name?, sector?}`); a name you already have is a 409 `company_exists` naming it |
+| `POST /api/companies/bulk/delete` | `{ids}`: **permanently** delete companies **and every application at them** (archived too); the people there are kept. All or nothing |
 | `POST /api/companies/:id/merge` | `{into}`: move every application to another company and remove this one; refused if two would become the same role |
 | `GET /api/stats` | counts by status/function/sector, the funnel, response rate, median days to a response; `?list=<id>` or any application filter |
 | `GET /api/breakdowns` | replies/interviews/offers by `function`, `sector`, `source`, `resume`, the sample threshold, and median days per stage; scoped like stats (`?list=<id>` or any filter) |
@@ -71,7 +73,7 @@ elsewhere.
 | `GET/PATCH /api/settings` | preferences: `school`, `program`, `gradYear`, `targetRoles`, `targetTerms` (blank clears it; no school means people searches look at the whole company) |
 | `GET/PATCH /api/profile` | your profile: `{profile, resumeVersions, unlisted}`; PATCH takes `name` and any of the settings above, all or nothing. The email is read-only |
 | `POST /api/resume-versions`, `PATCH/DELETE /api/resume-versions/:id` | the names of your resume versions (no files). Renaming renames the same text on your applications; removing leaves them alone |
-| `GET/POST /api/interests`, `PATCH/DELETE /api/interests/:id`, `POST /api/interests/:id/start` | the **Interested** tab: jobs you might apply to (company, optional role, link, note). `start` (`{status: "saved"\|"drafting", roleTitle?}`) turns one into a real application, carrying the link and note over, and removes it |
+| `GET/POST /api/interests`, `PATCH/DELETE /api/interests/:id`, `POST /api/interests/bulk/delete` (`{ids}`), `POST /api/interests/:id/start` | the **Interested** tab: jobs you might apply to (company, optional role, link, note). `start` (`{status: "saved"\|"drafting", roleTitle?}`) turns one into a real application, carrying the link and note over, and removes it |
 | `GET /api/auth/state` | public: `{account, canSignUp, claimsExistingData}` |
 | `POST /api/auth/signup`, `/signin`, `/signout` | public. Sign-up (`{name, email, password}`) or sign-in sets an HttpOnly session cookie. Five wrong passwords lock an email for 15 minutes (429) |
 | `POST /api/auth/change-password`, `/delete-account` | `{current, next}` signs every other browser out; `{password}` deletes the account and all its data, after a `pre-delete-account` backup |
@@ -100,8 +102,12 @@ writes through the same API as everything else.
   (Saved or Drafting) with the link and note carried over, and removes it from this list.
 - **Applications.** Your lists as tabs, status chips, search, sortable columns, a
   four-segment progress bar (the furthest stage ever reached, plus how it ended),
-  a status menu that only offers legal moves, and bulk actions that change all of
-  the selected applications or none.
+  a status menu that only offers legal moves, and tick boxes for bulk actions (set sector,
+  mark ghosted, delete) that change all of the selected applications or none.
+- **Deleting.** Archive takes an application out of your lists and keeps it. **Delete** removes it
+  for good, from its detail panel or from the tick boxes on Applications, Companies and Interested;
+  a company has its own Delete too, which also deletes every application at it (the people you know
+  there are kept). Each one asks first, says exactly what will go, and cannot be undone.
 - **Detail panel.** The dated history, undo, the editable details (including
   follow-up date and deadline, which feed Reminders), notes, archive. While an application is in
   Drafting, the link to the posting gets its own box at the top, saved the moment you paste it.

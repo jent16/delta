@@ -386,3 +386,34 @@ test("pasting a profile link over HTTP: 201 for a new person, 200 for one you al
   assert.equal((await api.call("POST", "/api/contacts/from-profile", {})).status, 400);
   assert.equal((await api.call("POST", "/api/contacts/from-profile", { url: "https://www.linkedin.com/in/someone", applicationId: 999 })).status, 404);
 });
+
+test("permanent delete over HTTP: applications, companies and interests, each all or nothing", async (t) => {
+  const api = await startApi();
+  t.after(() => api.close());
+  const a = (await api.call("POST", "/api/applications", { company: "Stripe", roleTitle: "SWE" })).body;
+  const b = (await api.call("POST", "/api/applications", { company: "Ramp", roleTitle: "PM" })).body;
+  const c = (await api.call("POST", "/api/applications", { company: "Figma", roleTitle: "SWE" })).body;
+
+  // "bulk" is not an application id, a bad body is a 400, an unknown id is a 404 that changes nothing
+  assert.equal((await api.call("POST", "/api/applications/bulk/delete", { ids: [] })).status, 400);
+  assert.equal((await api.call("POST", "/api/applications/bulk/delete", { ids: [a.id], extra: 1 })).status, 400);
+  assert.equal((await api.call("POST", "/api/applications/bulk/delete", { ids: [a.id, 9999] })).status, 404);
+  assert.equal((await api.call("GET", "/api/applications")).body.applications.length, 3);
+
+  const gone = await api.call("POST", "/api/applications/bulk/delete", { ids: [a.id, b.id] });
+  assert.deepEqual([gone.status, gone.body], [200, { removed: 2 }]);
+  assert.equal((await api.call("GET", `/api/applications/${a.id}`)).status, 404);
+  assert.deepEqual((await api.call("GET", "/api/applications")).body.applications.map((x: { company: string }) => x.company), ["Figma"]);
+
+  const figmaCompany = (await api.call("GET", "/api/companies")).body.companies.find((x: { name: string }) => x.name === "Figma");
+  assert.equal((await api.call("POST", "/api/companies/bulk/delete", { ids: [figmaCompany.id, 9999] })).status, 404);
+  const companyGone = await api.call("POST", "/api/companies/bulk/delete", { ids: [figmaCompany.id] });
+  assert.deepEqual([companyGone.status, companyGone.body], [200, { removed: 1, applications: 1 }]);
+  assert.equal((await api.call("GET", `/api/applications/${c.id}`)).status, 404);
+
+  const i1 = (await api.call("POST", "/api/interests", { company: "Stripe" })).body;
+  const i2 = (await api.call("POST", "/api/interests", { company: "Ramp" })).body;
+  assert.equal((await api.call("POST", "/api/interests/bulk/delete", { ids: [i1.id, 9999] })).status, 404);
+  assert.deepEqual((await api.call("POST", "/api/interests/bulk/delete", { ids: [i1.id, i2.id] })).body, { removed: 2 });
+  assert.deepEqual((await api.call("GET", "/api/interests")).body.interests, []);
+});

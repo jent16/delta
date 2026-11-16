@@ -188,3 +188,21 @@ test("a row that fails at write time (after planning said it was fine) is report
   const second = await imports.commit(1, REQ);
   assert.deepEqual([second.summary.create, second.summary.alreadyImported], [1, 2]); // only Boom is retried
 });
+
+test("an imported application you deleted for good is not brought back by running the import again", async () => {
+  const rowA = swe("Stripe", "SWE Intern", "Applied", "2026-09-05");
+  const rowB = swe("Figma", "SWE", "Bookmarked");
+  const t = setup([rowA, rowB]);
+  await t.imports.commit(1, REQ);
+  const figma = t.service.list(1, { q: "figma" })[0]!;
+  t.service.removeMany(1, { ids: [figma.id] });
+  assert.equal(count(t), 1);
+
+  const preview = await t.imports.preview(1, REQ);
+  assert.equal(preview.items.find((i) => i.company === "Figma" || i.externalId === rowB.externalId)?.action, "already_imported");
+  assert.match(preview.items.find((i) => i.externalId === rowB.externalId)!.reason ?? "", /deleted/);
+  const again = await t.imports.commit(1, REQ);
+  assert.equal(again.summary.create, 0);
+  assert.deepEqual(t.service.list(1, {}).map((a) => a.company), ["Stripe"]);
+  assert.equal(count(t, "import_records"), 2); // the memory of Figma is kept, pointing at nothing
+});

@@ -261,3 +261,37 @@ test("get() includes how far the application got, so a detail view needs no seco
   t.service.undoStatusChange(1, a.id); // back to interview: still level 3, no longer ended
   assert.deepEqual(t.service.get(1, a.id).progress, { level: 3, outcome: null });
 });
+
+test("deleting applications for good removes their history and person links, all or nothing", () => {
+  const t = makeTracker();
+  const a = t.service.add(1, { company: "Stripe", roleTitle: "SWE" });
+  const b = t.service.add(1, { company: "Ramp", roleTitle: "PM" });
+  const keep = t.service.add(1, { company: "Figma", roleTitle: "SWE" });
+  t.service.changeStatus(1, a.id, { status: "applied" });
+  const p = t.contacts.add(1, { name: "Priya", company: "Stripe" });
+  t.contacts.link(1, p.id, { applicationId: a.id, role: "referrer" });
+
+  assert.deepEqual(t.service.removeMany(1, { ids: [a.id, b.id] }), { removed: 2 });
+  assert.deepEqual(t.service.list(1, { includeArchived: "true" }).map((x) => x.company), ["Figma"]);
+  const n = (sql: string) => (t.db.prepare(sql).get() as { n: number }).n;
+  assert.equal(n(`SELECT COUNT(*) n FROM status_events WHERE application_id IN (${a.id}, ${b.id})`), 0);
+  assert.equal(n("SELECT COUNT(*) n FROM application_contacts"), 0);
+  assert.equal(t.contacts.list(1, {}).length, 1); // the person is kept; only the link went
+  assert.throws(() => t.service.get(1, a.id), NotFoundError);
+
+  // one bad id means nothing is deleted
+  assert.throws(() => t.service.removeMany(1, { ids: [keep.id, 9999] }), NotFoundError);
+  assert.equal(t.service.list(1, {}).length, 1);
+  assert.throws(() => t.service.removeMany(1, { ids: [] }), ValidationError);
+});
+
+test("an archived application can be deleted for good too, and one person cannot delete another's", () => {
+  const t = makeTracker();
+  t.db.prepare("INSERT INTO users (id, name, created_at) VALUES (2, 'B', 't')").run();
+  const mine = t.service.add(1, { company: "Stripe", roleTitle: "SWE" });
+  t.service.archive(1, mine.id);
+  assert.throws(() => t.service.removeMany(2, { ids: [mine.id] }), NotFoundError);
+  assert.equal(t.service.list(1, { includeArchived: "true" }).length, 1);
+  assert.deepEqual(t.service.removeMany(1, { ids: [mine.id] }), { removed: 1 });
+  assert.equal(t.service.list(1, { includeArchived: "true" }).length, 0);
+});

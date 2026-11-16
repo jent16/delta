@@ -121,5 +121,18 @@ export function createCompanyRepository(db: Db): CompanyRepository {
       })();
       return { company: findById(userId, intoId) as CompanySummary, moved };
     },
+
+    removeMany(userId, ids, now) {
+      if (!ids.length) return { companies: 0, applications: 0 };
+      const marks = ids.map(() => "?").join(", ");
+      let result = { companies: 0, applications: 0 };
+      db.transaction(() => {
+        const applications = db.prepare(`DELETE FROM applications WHERE user_id = ? AND company_id IN (${marks})`).run(userId, ...ids).changes;
+        db.prepare(`UPDATE contacts SET company_id = NULL, updated_at = ? WHERE user_id = ? AND company_id IN (${marks})`).run(now, userId, ...ids); // people stay
+        const companies = db.prepare(`DELETE FROM companies WHERE user_id = ? AND id IN (${marks})`).run(userId, ...ids).changes;
+        result = { companies, applications };
+      })();
+      return result;
+    },
   };
 }

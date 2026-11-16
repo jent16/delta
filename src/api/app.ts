@@ -190,6 +190,7 @@ export function createApp(deps: AppDeps) {
       res.status(204).end();
     });
     // turns it into an application (saved or drafting) and removes it from the list
+    app.post("/api/interests/bulk/delete", (req, res) => void res.json(interests.removeMany(currentUserId(req), req.body)));
     app.post("/api/interests/:id/start", (req, res) => void res.status(201).json({ application: interests.start(currentUserId(req), idParam(req), req.body) }));
   }
 
@@ -217,6 +218,11 @@ export function createApp(deps: AppDeps) {
   // before the :id routes, so "bulk" is never read as an id
   app.post("/api/applications/bulk", (req, res) => {
     res.json(applications.editMany(currentUserId(req), req.body));
+  });
+
+  // permanent: the history and person links go too. The screens always ask first and say what will be lost.
+  app.post("/api/applications/bulk/delete", (req, res) => {
+    res.json(applications.removeMany(currentUserId(req), req.body));
   });
 
   app.post("/api/applications/bulk/status", (req, res) => {
@@ -360,6 +366,11 @@ export function createApp(deps: AppDeps) {
 
   app.patch("/api/companies/:id", (req, res) => {
     res.json(companies.edit(currentUserId(req), idParam(req), req.body));
+  });
+
+  // permanent: also deletes every application at these companies (people there are kept)
+  app.post("/api/companies/bulk/delete", (req, res) => {
+    res.json(companies.removeMany(currentUserId(req), req.body));
   });
 
   app.post("/api/companies/:id/merge", (req, res) => {

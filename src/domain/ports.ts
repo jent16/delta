@@ -29,6 +29,12 @@ export interface ApplicationRepository {
   undoLastStatusChange(userId: number, id: number, now: string): Application | null;
   events(userId: number, id: number): StatusEvent[];
   archive(userId: number, id: number, now: string): boolean;
+  /**
+   * Permanently deletes these applications in ONE transaction (the caller has checked they are all the user's).
+   * Their status history and links to people go with them; their Notion import-ledger rows stay, pointing at nothing,
+   * so a re-import never brings them back. Returns how many were deleted.
+   */
+  removeMany(userId: number, ids: number[]): number;
   /** Every application INCLUDING archived ones, each with its history, with no row cap. For exports. */
   exportAll(userId: number): ExportedApplication[];
   /** Applications matching the query, each with its history, with no row cap. For stats and reminders. */
@@ -51,6 +57,11 @@ export interface CompanyRepository {
   mergeConflicts(userId: number, fromId: number, intoId: number): string[];
   /** Moves every application of `fromId` to `intoId` and removes `fromId`, atomically. */
   merge(userId: number, fromId: number, intoId: number, now: string): { company: CompanySummary; moved: number } | null;
+  /**
+   * Permanently deletes these companies AND every application at them (archived ones too), atomically.
+   * People at those companies are kept; they just no longer belong to a company.
+   */
+  removeMany(userId: number, ids: number[], now: string): { companies: number; applications: number };
 }
 
 /** People you know at companies, their links to applications, and the dated log of what you did with them. */
@@ -144,6 +155,8 @@ export interface InterestRepository {
   insert(userId: number, fields: InterestFields, now: string): Interest;
   update(userId: number, id: number, patch: InterestPatch, now: string): Interest | null;
   remove(userId: number, id: number): boolean;
+  /** Removes these in ONE transaction (the caller has checked they are all the user's). Returns how many went. */
+  removeMany(userId: number, ids: number[]): number;
 }
 
 export interface ListRepository {
@@ -170,8 +183,8 @@ export interface ContactImportLedger {
 
 /** Remembers which source row became which application, so importing twice never duplicates. */
 export interface ImportLedger {
-  /** externalId -> application id, for everything already imported from this source. */
-  known(userId: number, source: string): Map<string, number>;
+  /** externalId -> application id (or null if you have since deleted that application), for everything already imported from this source. */
+  known(userId: number, source: string): Map<string, number | null>;
   record(userId: number, source: string, externalId: string, applicationId: number, now: string): void;
 }
 

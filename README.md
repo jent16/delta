@@ -18,6 +18,19 @@ layers and the one rule that holds them together) and
 npm run tracker      # http://localhost:3001
 ```
 
+**Running your own copy** (no server and no cost: it runs on your computer, with your own data). Install
+[Node](https://nodejs.org) (the current LTS) and git, clone the repo, then:
+
+```bash
+./start.sh           # Mac / Linux        (Windows: double-click start.cmd, or run it in Command Prompt)
+```
+
+It checks your Node version, installs what is missing on the first run, starts the tracker and opens your browser.
+Choose **Create account** (the account lives on your computer only) and leave the window open while you use it;
+Ctrl+C stops it. After `git pull`, run it again: it reinstalls if the packages changed, and the database updates
+itself (with a backup first). If port 3001 is taken, set `TRACKER_PORT`. `./start.sh --check` only reports what it
+finds. Your data is in `var/tracker.db`: see *Backups* below, because nobody else has a copy.
+
 **Pipeline.** Every application moves through a fixed set of statuses, and
 each change is stored with its date:
 

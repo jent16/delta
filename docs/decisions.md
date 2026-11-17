@@ -537,3 +537,15 @@ each company row. Every delete asks first, names what will go, starts with focus
   gentler choice, which the dialogs point to.
 *Alternative:* a trash can with restore. Rejected for now: it means a second "deleted" state everywhere a list or a
 count is computed. Worth revisiting if people delete by accident.
+
+## 47. Other people run their own copy; a start script, not Docker (yet)
+The tracker is local-first, so a classmate can run it on their own computer with their own database and no server of
+mine, at no cost. The way in is `./start.sh` / `start.cmd` (thin wrappers) over `scripts/launch.cjs`, which checks the
+Node version (read from `engines` in package.json, so it is written down once), runs `npm install` only when
+`node_modules` is missing or `package-lock.json` is newer, refuses politely if another program owns the port, starts
+`src/main.ts`, and opens the browser only once `/api/health` answers. If the tracker is already running it just opens
+it. The launcher is plain CommonJS so it can still explain itself on a Node too old for the tracker.
+*Alternative:* a Dockerfile. Deferred, not rejected: it removes Node-version and native-module problems but asks each
+person to install Docker Desktop and to mount a volume for the database (forget it and the data goes with the
+container). It becomes worth it if the tracker is hosted on a platform.
+

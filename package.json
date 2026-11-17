@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "npm run test:tracker && npm run test:legacy",
-    "test:tracker": "node --test \"src/**/*.test.ts\"",
+    "test:tracker": "node --test \"src/**/*.test.ts\" \"scripts/*.test.cjs\"",
     "test:legacy": "node --test \"test/*.test.js\"",
     "start": "node server.js",
     "ingest": "node scripts/ingest-role.js",
@@ -13,6 +13,7 @@
     "dev": "node server.js --mock",
     "typecheck": "tsc --noEmit",
     "tracker": "node src/main.ts",
+    "launch": "node scripts/launch.cjs",
     "import:notion": "node --env-file-if-exists=.env src/import-notion.ts",
     "backup": "node --env-file-if-exists=.env src/data-cli.ts backup",
     "backups": "node --env-file-if-exists=.env src/data-cli.ts backups",

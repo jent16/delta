@@ -69,6 +69,7 @@ with its own rebuildable `delta.db`.
 | 9a | Accounts: email + password sign-in, sessions, profile (school, goals, resume version names), delete account | done |
 | 9c | **Interested** tab (jobs you might apply to: link + note, "Start application" makes it real); a prominent "paste the job link" box for Drafting applications and in the New application dialog | done |
 | 9d | **Delete**: a confirmed permanent delete on an application's panel, tick-box bulk delete on Applications, Companies and Interested, and a Delete on each company (decision 46) | done |
+| 9e | **Run your own copy**: `./start.sh` / `start.cmd` check Node, install, start and open the browser (decision 47). Docker deferred | done |
 | 9b | Hosting it: see [`hosting.md`](hosting.md) for the plan. Password reset waits for the login wireframe | planned |
 | - | Optional: CSV/XLSX import, weekly ingest, sponsorship filter | when wanted |
 
